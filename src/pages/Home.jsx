@@ -8,6 +8,8 @@ import CharacterModal from '../components/Character';
 import InventoryModal from '../components/Inventory';
 import { Backpack, Sparkles, Star } from 'lucide-react';
 import './Home.css';
+import mageperfil from '../assets/mage-perfil.png'
+import mage from '../assets/mage.png'
 
 const Home = () => {
   const { user, signOut } = useAuth();
@@ -132,7 +134,7 @@ const Home = () => {
             className='character-stats side-button'
             onClick={() => setCharacterModalOpen(true)}
           >
-            <img src="mage-perfil.png" alt="" />
+            <img src={mageperfil} alt="" />
           </button>
 
           <button
@@ -207,7 +209,7 @@ const Home = () => {
           onSkillClick={handleOpenInventory}
         >
           <img
-            src="mage.png"
+            src={mage}
             alt="Character"
             className="character-modal-image"
           />
