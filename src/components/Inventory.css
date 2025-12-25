@@ -9,12 +9,12 @@
   justify-content: center;
   padding-top: 3rem;
   z-index: 1000;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur();
 }
 
 .inventory-modal-content {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border-radius: 20px;
+  border-radius: 10px;
   width: 80%;
   max-width: 700px;
   max-height: 90vh;
@@ -25,6 +25,7 @@
   border: 2px solid rgba(240, 145, 36, 0.3);
   overflow: hidden;
   flex: 1;
+  margin-top: 2rem;
 }
 
 .inventory-modal-close {
@@ -146,7 +147,6 @@
 }
 
 .inventory-item:hover {
-  transform: translateY(-5px);
   border-color: rgba(240, 145, 36, 0.6);
   box-shadow: 0 10px 30px rgba(240, 145, 36, 0.3);
 }
@@ -313,10 +313,6 @@
 
 /* Responsivo */
 @media (max-width: 380px) {
-  .inventory-modal-overlay {
-    padding-top: 2rem;
-  }
-
   .inventory-modal-content {
     width: 95%;
     max-height: 85vh;

@@ -52,9 +52,6 @@ const Home = () => {
       try {
         const loot = await generateLoot(user.id);
 
-        console.log('LOOT RETORNADO:', loot);
-        console.log('ITENS DO LOOT:', loot?.items);
-
         const updatedData = await getUserById(user.id);
         setUserData(updatedData);
 

@@ -7,33 +7,58 @@ const Header = ({ userData, onLogout }) => {
   const toggleMenu = () => {
     setMenuOpen(!menuOpen);
   };
+  const nivel = userData?.nivel ?? 1
+  const xp = userData?.xp ?? 0
+
+  const xpMinNivel = nivel * nivel * 100
+  const xpProxNivel = (nivel + 1) * (nivel + 1) * 100
+
+  const xpNoNivel = xp - xpMinNivel
+  const xpTotalNivel = xpProxNivel - xpMinNivel
+
+  const xpPercent = Math.min(
+    100,
+    Math.max(0, (xpNoNivel / xpTotalNivel) * 100)
+  )
+
 
   return (
     <header className="header">
-      <div className="header-left">
+      <div className="header-avatar">
         <div className="avatar-container">
           {userData?.avatar ? (
             <img src={userData.avatar} alt="Avatar" className="avatar" />
           ) : (
-            <div className="level-icon">
-              <p>{userData?.nivel}</p>
-            </div>
+            <div></div>
           )}
-        </div>
-
-        <div className="user-info">
-          <div className="user-name">{userData?.nome || 'Usuário'}</div>
-
-          <div className="user-level">
-            <p>R$:</p>
-            <div className="level">
-              {userData?.saldo ?? 0}
-            </div>
-          </div>
         </div>
       </div>
 
-      <div className="header-right">
+      <div className='header-menu'>
+        <div className="header-infos">
+          <div className="user-infos">
+            <div className="user-name">
+              {userData?.nome || 'Usuário'}
+            </div>
+            <div className="user-money">
+              <p>R$: {userData?.saldo ?? 0}</p>
+            </div>
+          </div>
+          <div className="header-level">
+            <div className="xp-bar">
+              <div
+                className="xp-bar-fill"
+                style={{ width: `${xpPercent}%` }}
+              />
+            </div>
+
+            <h4 className="user-level">
+              Nvl {nivel}
+            </h4>
+          </div>
+
+        </div>
+
         <button
           className={`hamburger ${menuOpen ? 'active' : ''}`}
           onClick={toggleMenu}
@@ -43,20 +68,21 @@ const Header = ({ userData, onLogout }) => {
           <span></span>
           <span></span>
         </button>
-
-        {menuOpen && (
-          <>
-            <div className="menu-overlay" onClick={toggleMenu}></div>
-            <div className="menu-dropdown">
-              <button className="menu-item">Info</button>
-              <button onClick={onLogout} className="menu-item logout">
-                Sair
-              </button>
-            </div>
-          </>
-        )}
       </div>
-    </header>
+
+      {menuOpen && (
+        <>
+          <div className="menu-overlay" onClick={toggleMenu}></div>
+          <div className="menu-dropdown">
+            <button className="menu-item">Info</button>
+            <button onClick={onLogout} className="menu-item logout">
+              Sair
+            </button>
+          </div>
+        </>
+      )}
+
+    </header >
   );
 };
 

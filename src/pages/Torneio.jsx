@@ -4,9 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUserById } from '../services/service';
 import Header from '../components/Header';
 import Nav from '../components/Nav';
-import './Ranking.css';
+import './Torneio.css';
 
-const Ranking = () => {
+const Torneio = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [userData, setUserData] = useState(null);
@@ -40,19 +40,20 @@ const Ranking = () => {
 
   if (loading) {
     return (
-      <div className="ranking-container">
+      <div className="torneio-container">
         <div className="loading">Carregando...</div>
       </div>
     );
   }
 
   return (
-    <div className="ranking-container">
+    <div className="torneio-container">
       <Header userData={userData} onLogout={handleLogout} />
 
-      <main className="ranking-content">
-        <div className="ranking-list">
-          <p>Em breve...</p>
+      <main className="torneio-content">
+        <div className="torneio-list">
+          <div className='torneio-header'>Sua pontuação</div>
+          <div className='torneio-torneio'></div>
         </div>
 
         <div className="nav-menu">
@@ -63,4 +64,4 @@ const Ranking = () => {
   );
 };
 
-export default Ranking;
+export default Torneio;

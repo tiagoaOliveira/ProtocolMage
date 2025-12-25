@@ -39,7 +39,6 @@
     font-weight: bold;
     border-radius: 6px;
     cursor: pointer;
-    transition: background 0.2s;
 }
 
 .categoria button:hover {
@@ -144,4 +143,10 @@
     height: 100vh;
     color: #fff;
     font-size: 1.5rem;
+}
+
+@media (max-width: 380px) {
+    .mercado-list {
+        padding: 0;
+    }
 }

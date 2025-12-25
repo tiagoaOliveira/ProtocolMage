@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Carteira from './pages/Carteira';
-import Ranking from './pages/Ranking';
+import Torneio from './pages/Torneio';
 import Mercado from './pages/Mercado';
 
 // Componente para proteger rotas
@@ -53,10 +53,10 @@ function App() {
             }
           />
           <Route
-            path="/ranking"
+            path="/torneio"
             element={
               <PrivateRoute>
-                <Ranking />
+                <Torneio />
               </PrivateRoute>
             }
           />
