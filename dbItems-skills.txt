@@ -12,3 +12,55 @@ CREATE TABLE public.skills (
   xp_skill INT NOT NULL,
   base_effect JSONB NOT NULL
 );
+
+-- 1. ATUALIZAR TABELA SKILLS
+ALTER TABLE public.skills 
+  DROP COLUMN IF EXISTS base_effect,
+  ADD COLUMN tipo TEXT NOT NULL DEFAULT 'dano', -- dano, buff, debuff, dot, especial
+  ADD COLUMN duracao INT DEFAULT 1, -- turnos de duração do efeito
+  ADD COLUMN cooldown INT DEFAULT 0, -- turnos de recarga
+  ADD COLUMN alvo TEXT DEFAULT 'inimigo', -- inimigo, self, ambos
+  ADD COLUMN efeito JSONB NOT NULL DEFAULT '{}'; -- estrutura flexível para efeitos
+
+-- Index para queries por tipo
+CREATE INDEX idx_skills_tipo ON public.skills(tipo);
+
+-- 2. ATUALIZAR USER_SKILLS
+ALTER TABLE public.user_skills
+  DROP COLUMN equipada,
+  DROP COLUMN quantidade,
+  ADD COLUMN slot SMALLINT CHECK (slot BETWEEN 1 AND 6), -- slot equipado (null = não equipado)
+  ADD COLUMN nivel_desbloqueio INT NOT NULL DEFAULT 10; -- quando pode equipar
+
+-- Constraint: 1 skill por slot
+CREATE UNIQUE INDEX idx_user_skills_slot ON public.user_skills(user_id, slot) WHERE slot IS NOT NULL;
+
+-- Index otimizado para buscar skills equipadas
+CREATE INDEX idx_user_skills_equipadas ON public.user_skills(user_id) WHERE slot IS NOT NULL;
+
+-- 3. NOVA TABELA: BATALHAS
+CREATE TABLE public.batalhas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  oponente_id UUID REFERENCES public.users(id) ON DELETE SET NULL, -- null = NPC
+  turno_atual INT NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'ativa', -- ativa, finalizada
+  vencedor_id UUID,
+  estado JSONB NOT NULL, -- HP, buffs, debuffs, cooldowns
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_batalhas_user ON public.batalhas(user_id) WHERE status = 'ativa';
+
+-- 4. TABELA DE EFEITOS ATIVOS (durante batalha)
+CREATE TABLE public.batalha_efeitos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  batalha_id UUID NOT NULL REFERENCES public.batalhas(id) ON DELETE CASCADE,
+  alvo TEXT NOT NULL, -- 'user', 'oponente'
+  tipo TEXT NOT NULL,
+  valor NUMERIC,
+  turnos_restantes INT NOT NULL,
+  metadata JSONB DEFAULT '{}'
+);
+
+CREATE INDEX idx_batalha_efeitos_lookup ON public.batalha_efeitos(batalha_id, alvo);

@@ -1,0 +1,216 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
+
+    const requestData = await req.json()
+    const userId = requestData.user_id
+    const oponenteId = requestData.oponente_id
+
+    // 1️⃣ Buscar jogadores
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, nivel, base_hp, base_attack')
+      .eq('id', userId)
+      .single()
+
+    const { data: oponente, error: oponenteError } = await supabase
+      .from('users')
+      .select('id, nivel, base_hp, base_attack')
+      .eq('id', oponenteId)
+      .single()
+
+    if (!user || !oponente) {
+      throw new Error('Jogador não encontrado')
+    }
+
+    // Calcular stats 
+    const calcularStat = (base: number, nivel: number) => {
+      return Math.floor(base * (1 + nivel * 0.2))
+    }
+
+    // Buscar skills do USER
+    const { data: userSkills, error: userSkillsError } = await supabase
+      .from('user_skills')
+      .select('slot, skills(id, name, cooldown)')
+      .eq('user_id', userId)
+      .lte('slot', 6)
+      .order('slot')
+
+    // Buscar skills do OPONENTE
+    const { data: opponentSkills, error: opponentSkillsError } = await supabase
+      .from('user_skills')
+      .select('slot, skills(id, name, cooldown)')
+      .eq('user_id', oponenteId)
+      .lte('slot', 6)
+      .order('slot')
+
+    // Garantir arrays válidos
+    const userSkillsArray = userSkills || []
+    const opponentSkillsArray = opponentSkills || []
+
+    // Array de slots priority
+    const userSkillQueue = userSkillsArray.map(us => us.skills.id)
+    const opponentSkillQueue = opponentSkillsArray.map(os => os.skills.id)
+
+    // Criar estado das skills
+    const userSkillState = userSkillsArray.map(us => ({
+      slot: us.slot,
+      id: us.skills.id,
+      name: us.skills.name,
+      cooldown: us.skills.cooldown,
+      last_used_turn: -999
+    }))
+
+    const opponentSkillState = opponentSkillsArray.map(os => ({
+      slot: os.slot,
+      id: os.skills.id,
+      name: os.skills.name,
+      cooldown: os.skills.cooldown,
+      last_used_turn: -999
+    }))
+
+    // Escolher skill da fila
+    let userFilaIndex = { value: 0 }
+    let opponentFilaIndex = { value: 0 }
+
+    const escolherSkillFila = (queue: number[], state: any[], turno: number, filaIndex: { value: number }) => {
+      if (queue.length === 0) return null
+      
+      const total = queue.length
+      for (let i = 0; i < total; i++) {
+        const idx = (filaIndex.value + i) % total
+        const skillId = queue[idx]
+        const skill = state.find(s => s.id === skillId)
+        if (!skill) continue
+        if (turno - skill.last_used_turn >= skill.cooldown) {
+          skill.last_used_turn = turno
+          filaIndex.value = (idx + 1) % total
+          return skill
+        }
+      }
+      filaIndex.value = (filaIndex.value + 1) % total
+      return null
+    }
+
+    // 2️⃣ Criar estado da batalha
+    const jogadorA = {
+      id: user.id,
+      hp: calcularStat(user.base_hp, user.nivel),
+      attack: calcularStat(user.base_attack, user.nivel),
+    }
+
+    const jogadorB = {
+      id: oponente.id,
+      hp: calcularStat(oponente.base_hp, oponente.nivel),
+      attack: calcularStat(oponente.base_attack, oponente.nivel),
+    }
+
+    const logTurnos: any[] = []
+    
+    // Dados iniciais dos jogadores
+    logTurnos.push({
+      inicio: {
+        user: {
+          nivel: user.nivel,
+          attack: jogadorA.attack,
+          hp: jogadorA.hp,
+        },
+        oponente: {
+          nivel: oponente.nivel,
+          attack: jogadorB.attack,
+          hp: jogadorB.hp,
+        },
+      },
+    })
+    
+    let turno = 1
+    const MAX_TURNOS = 15
+
+    // 3️⃣ Loop da batalha
+    while (turno <= MAX_TURNOS) {
+      const turnoLog: any = { turn: turno, actions: [] }
+
+      // USER
+      const userSkill = escolherSkillFila(userSkillQueue, userSkillState, turno, userFilaIndex)
+      if (userSkill) {
+        turnoLog.actions.push({
+          actor: 'user',
+          type: 'skill',
+          id: userSkill.id,
+          name: userSkill.name
+        })
+      } else {
+        turnoLog.actions.push({
+          actor: 'user',
+          type: 'basic',
+          id: 0,
+          name: 'Basic Attack'
+        })
+      }
+
+      // OPONENTE
+      const opponentSkill = escolherSkillFila(opponentSkillQueue, opponentSkillState, turno, opponentFilaIndex)
+      if (opponentSkill) {
+        turnoLog.actions.push({
+          actor: 'opponent',
+          type: 'skill',
+          id: opponentSkill.id,
+          name: opponentSkill.name
+        })
+      } else {
+        turnoLog.actions.push({
+          actor: 'opponent',
+          type: 'basic',
+          id: 0,
+          name: 'Basic Attack'
+        })
+      }
+
+      logTurnos.push(turnoLog)
+      turno++
+    }
+
+    // 4️⃣ Definir vencedor
+    const vencedor_id = jogadorA.hp > 0 ? jogadorA.id : jogadorB.id
+
+    // 5️⃣ Salvar batalha
+    const { error } = await supabase
+      .from('batalhas')
+      .insert({
+        user_id: userId,
+        oponente_id: oponenteId,
+        vencedor_id,
+        log_turnos: logTurnos,
+      })
+
+    if (error) throw error
+
+    return new Response(
+      JSON.stringify({
+        vencedor_id,
+        log_turnos: logTurnos,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+})

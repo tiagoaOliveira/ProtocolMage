@@ -78,14 +78,17 @@
 .loot-modal-content {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     border-radius: 20px;
-    padding: 3rem 2rem 2rem 2rem;
-    max-width: 700px;
-    width: 90%;
+    padding: 3rem 2rem 2rem;
+    width: clamp(280px, 90vw, 700px);
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
     position: relative;
     border: 3px solid #FFD700;
     box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
     animation: scaleIn 0.4s ease;
 }
+
 
 @keyframes scaleIn {
     from {
@@ -101,7 +104,7 @@
 
 .loot-items-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
     gap: 15px;
     margin-bottom: 30px;
 }

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { X, Star, Backpack, Sparkles, TrendingUp, ShoppingCart } from 'lucide-react';
-import { 
-  getUserSkills, 
-  getUserXPItems, 
-  useXPItem, 
-  convertSkillToXP, 
+import {
+  getUserSkills,
+  getUserXPItems,
+  useXPItem,
+  convertSkillToXP,
   toggleSkillEquipped,
-  listItemOnMarketplace 
+  listItemOnMarketplace
 } from '../services/service';
 import SellModal from './SellModal';
 import './Inventory.css';
@@ -16,7 +16,7 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
   const [skills, setSkills] = useState([]);
   const [xpItems, setXpItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Estados do modal de venda
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -48,13 +48,35 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
     }
   };
 
-  const handleToggleEquip = async (skillId) => {
+  const handleToggleEquip = async (skillId, currentSlot) => {
     try {
-      await toggleSkillEquipped(userId, skillId);
+      if (currentSlot !== null) {
+        await toggleSkillEquipped(userId, skillId, null);
+      } else {
+        const equippedSkills = skills.filter(s => s.slot !== null);
+        const occupiedSlots = equippedSkills.map(s => s.slot);
+
+        let nextSlot = null;
+        for (let i = 1; i <= 6; i++) {
+          if (!occupiedSlots.includes(i)) {
+            nextSlot = i;
+            break;
+          }
+        }
+
+        if (nextSlot === null) {
+          alert('Todos os slots estão ocupados. Desequipe uma skill primeiro.');
+          return;
+        }
+
+        await toggleSkillEquipped(userId, skillId, nextSlot);
+      }
+
       loadInventory();
       if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Erro ao equipar/desequipar:', error);
+      alert(error.message || 'Erro ao equipar skill');
     }
   };
 
@@ -88,8 +110,8 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
 
   const handleSellConfirm = async (quantidade, preco) => {
     try {
-      const itemId = selectedItemType === 'skill' 
-        ? selectedItem.skill_id 
+      const itemId = selectedItemType === 'skill'
+        ? selectedItem.skill_id
         : selectedItem.item_id;
 
       await listItemOnMarketplace(
@@ -163,10 +185,10 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
                             )}
                             <div className="inventory-item-actions">
                               <button
-                                className={`btn-equip ${userSkill.equipada ? 'equipped' : ''}`}
-                                onClick={() => handleToggleEquip(userSkill.skill_id)}
+                                className={`btn-equip ${userSkill.slot !== null ? 'equipped' : ''}`}
+                                onClick={() => handleToggleEquip(userSkill.skill_id, userSkill.slot)}
                               >
-                                {userSkill.equipada ? 'Desequipar' : 'Equipar'}
+                                {userSkill.slot !== null ? 'Desequipar' : 'Equipar'}
                               </button>
                               <button
                                 className="btn-convert"
@@ -192,11 +214,12 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
                             </p>
                             <div className="inventory-item-stats">
                               <span className="item-quantity">x{userSkill.quantidade}</span>
+                              {userSkill.slot !== null && (
+                              <span className="item-equipped">✓ Equipada (Slot {userSkill.slot})</span>
+                            )}
                               <span className="item-xp">{userSkill.skill.xp_skill} XP</span>
                             </div>
-                            {userSkill.equipada && (
-                              <span className="item-equipped">✓ Equipada</span>
-                            )}
+                            
                           </div>
                         </div>
                       ))

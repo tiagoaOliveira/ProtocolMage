@@ -16,10 +16,9 @@ const Header = ({ userData, onLogout }) => {
   const xpNoNivel = xp - xpMinNivel
   const xpTotalNivel = xpProxNivel - xpMinNivel
 
-  const xpPercent = Math.min(
-    100,
-    Math.max(0, (xpNoNivel / xpTotalNivel) * 100)
-  )
+  const xpPercent = nivel >= 60 
+  ? 100 
+  : Math.min(100, Math.max(0, (xpNoNivel / xpTotalNivel) * 100));
 
 
   return (

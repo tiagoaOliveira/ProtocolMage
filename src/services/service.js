@@ -36,14 +36,12 @@ export const generateLoot = async (userId) => {
     });
 
     if (error) throw error;
-
-    return data; // ✅ retorna exatamente o JSON do banco
+    return data;
   } catch (error) {
     console.error('Erro ao gerar loot:', error);
     throw error;
   }
 };
-
 
 // ============================================
 // INVENTÁRIO - SKILLS
@@ -70,16 +68,18 @@ export const getEquippedSkills = async (userId) => {
       skill:skills(*)
     `)
     .eq('user_id', userId)
-    .eq('equipada', true);
+    .not('slot', 'is', null)
+    .order('slot', { ascending: true });
 
   if (error) throw error;
   return data;
 };
 
-export const toggleSkillEquipped = async (userId, skillId) => {
-  const { data, error } = await supabase.rpc('toggle_skill_equipped', {
+export const toggleSkillEquipped = async (userId, skillId, slot = null) => {
+  const { data, error } = await supabase.rpc('equip_skill_to_slot', {
     p_user_id: userId,
-    p_skill_id: skillId
+    p_skill_id: skillId,
+    p_slot: slot
   });
 
   if (error) throw error;
@@ -158,7 +158,6 @@ export const getMarketplaceListings = async (itemType = null) => {
   const { data, error } = await query;
   if (error) throw error;
 
-  // Buscar detalhes dos itens
   const listingsWithDetails = await Promise.all(
     data.map(async (listing) => {
       if (listing.item_type === 'skill') {
@@ -205,9 +204,7 @@ export const cancelMarketplaceListing = async (userId, listingId) => {
 export const getUserListings = async (userId) => {
   const { data, error } = await supabase
     .from('marketplace_listings')
-    .select(`
-      *
-    `)
+    .select('*')
     .eq('seller_id', userId)
     .order('created_at', { ascending: false });
 
@@ -230,6 +227,129 @@ export const getUserTransactions = async (userId, limit = 50) => {
   return data;
 };
 
+// ============================================
+// SISTEMA DE BATALHA
+// ============================================
+export const iniciarBatalha = async (userId, oponenteId) => {
+  try {
+    const response = await supabase.functions.invoke('battle-simulate', {
+      body: { user_id: userId, oponente_id: oponenteId }
+    });
+
+    if (response.error) throw response.error;
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao iniciar batalha:', error);
+    throw error;
+  }
+};
+
+export const getBatalhasUsuario = async (userId, limit = 10) => {
+  try {
+    const { data, error } = await supabase
+      .from('batalhas')
+      .select(`
+        id,
+        created_at,
+        vencedor_id,
+        user:user_id(id, username, nivel),
+        oponente:oponente_id(id, username, nivel)
+      `)
+      .or(`user_id.eq.${userId},oponente_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Erro ao buscar batalhas:', error);
+    throw error;
+  }
+};
+
+export const getBatalhaDetalhes = async (batalhaId) => {
+  try {
+    const { data, error } = await supabase
+      .from('batalhas')
+      .select(`
+        *,
+        user:user_id(id, username, nivel),
+        oponente:oponente_id(id, username, nivel)
+      `)
+      .eq('id', batalhaId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Erro ao buscar detalhes da batalha:', error);
+    throw error;
+  }
+};
+
+export const getRanking = async (limit = 50) => {
+  try {
+    // Busca TODOS os usuários
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, nome, nivel')
+      .limit(limit);
+
+    if (error) {
+      console.error('Erro ao buscar usuários:', error);
+      throw error;
+    }
+
+    if (!users || users.length === 0) {
+      return [];
+    }
+
+    const usersComVitorias = await Promise.all(
+      users.map(async (user) => {
+        const { count } = await supabase
+          .from('batalhas')
+          .select('id', { count: 'exact', head: true })
+          .eq('vencedor_id', user.id);
+
+        return { 
+          ...user, 
+          vitorias: count || 0,
+          username: user.nome || 'Sem nome' // Usa nome como username
+        };
+      })
+    );
+
+    // Ordena por vitórias, depois por nível
+    return usersComVitorias.sort((a, b) => {
+      if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
+      return (b.nivel || 1) - (a.nivel || 1);
+    });
+  } catch (error) {
+    console.error('Erro ao buscar ranking:', error);
+    throw error;
+  }
+};
+
+export const getSkillsEquipadas = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_skills')
+      .select(`
+        slot,
+        skill:skill_id(*)
+      `)
+      .eq('user_id', userId)
+      .not('slot', 'is', null)
+      .order('slot');
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Erro ao buscar skills equipadas:', error);
+    throw error;
+  }
+};
+
 export default {
   getUserById,
   updateUserProfile,
@@ -245,5 +365,10 @@ export default {
   buyFromMarketplace,
   cancelMarketplaceListing,
   getUserListings,
-  getUserTransactions
+  getUserTransactions,
+  iniciarBatalha,
+  getBatalhasUsuario,
+  getBatalhaDetalhes,
+  getRanking,
+  getSkillsEquipadas
 };

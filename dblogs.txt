@@ -1,0 +1,497 @@
+[
+  {
+    "inicio": {
+      "user": {
+        "hp": 13000,
+        "nivel": 60,
+        "attack": 650
+      },
+      "oponente": {
+        "hp": 13000,
+        "nivel": 60,
+        "attack": 650
+      }
+    }
+  },
+  {
+    "turn": 1,
+    "hpUser": 12025,
+    "actions": [
+      {
+        "nome": "Foco ",
+        "tipo": "buff",
+        "actor": "user",
+        "skillId": 14,
+        "hp_restante": 13000,
+        "buff_permanente": "+15% ataque"
+      },
+      {
+        "nome": "Execução",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 18,
+        "hp_restante": 12025,
+        "dano_causado": 975
+      }
+    ],
+    "hpOponente": 13000,
+    "status_effects": []
+  },
+  {
+    "turn": 2,
+    "hpUser": 10725,
+    "actions": [
+      {
+        "nome": "Espectro Infernal ",
+        "tipo": "dot",
+        "actor": "user",
+        "skillId": 12,
+        "hp_restante": 12702,
+        "dano_inicial": 298,
+        "dot_aplicado": true
+      },
+      {
+        "nome": "Golpe Sagaz",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 15,
+        "hp_restante": 10725,
+        "dano_causado": 1300
+      }
+    ],
+    "hpOponente": 12702,
+    "status_effects": []
+  },
+  {
+    "turn": 3,
+    "hpUser": 8775,
+    "actions": [
+      {
+        "nome": "Chuva Meteórica",
+        "tipo": "dot",
+        "actor": "user",
+        "skillId": 16,
+        "hp_restante": 12106,
+        "dano_inicial": 298,
+        "dot_aplicado": true
+      },
+      {
+        "nome": "Insanidade Explosiva",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 21,
+        "hp_restante": 8775,
+        "dano_causado": 1950
+      }
+    ],
+    "hpOponente": 12106,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 298,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 4,
+    "hpUser": 7735,
+    "actions": [
+      {
+        "nome": "Maldição Necro",
+        "tipo": "dot",
+        "actor": "user",
+        "skillId": 19,
+        "hp_restante": 11212,
+        "dano_inicial": 298,
+        "dot_aplicado": true
+      },
+      {
+        "hits": 2,
+        "nome": "Aero Impacto",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 13,
+        "hp_restante": 7735,
+        "dano_causado": 1040
+      }
+    ],
+    "hpOponente": 11212,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 298,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 298,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 5,
+    "hpUser": 6760,
+    "actions": [
+      {
+        "nome": "Golpe Sagaz",
+        "tipo": "dano",
+        "actor": "user",
+        "skillId": 15,
+        "hp_restante": 8824,
+        "dano_causado": 1494
+      },
+      {
+        "nome": "Torrente Perfurante",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 7,
+        "hp_restante": 6760,
+        "dano_causado": 975,
+        "ignorou_armor": true
+      }
+    ],
+    "hpOponente": 8824,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 298,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 298,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 298,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 6,
+    "hpUser": 8060,
+    "actions": [
+      {
+        "cura": 1300,
+        "nome": "Cura Vitalizadora",
+        "tipo": "buff",
+        "actor": "user",
+        "skillId": 6,
+        "hp_restante": 7930
+      },
+      {
+        "nome": "Julgamento Celestial",
+        "tipo": "especial",
+        "actor": "opponent",
+        "delayed": "5 turnos",
+        "skillId": 9,
+        "hp_restante": 8060
+      }
+    ],
+    "hpOponente": 7930,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 298,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 298,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 298,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 7,
+    "hpUser": 7085,
+    "actions": [
+      {
+        "tipo": "basic",
+        "actor": "user",
+        "bloqueado": false,
+        "hp_restante": 5964,
+        "dano_causado": 1072
+      },
+      {
+        "nome": "Execução",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 18,
+        "hp_restante": 7085,
+        "dano_causado": 975
+      }
+    ],
+    "hpOponente": 5964,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 298,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 298,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 298,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ],
+    "buff_aplicado_user": "+50% ataque"
+  },
+  {
+    "turn": 8,
+    "hpUser": 5785,
+    "actions": [
+      {
+        "tipo": "basic",
+        "actor": "user",
+        "bloqueado": false,
+        "hp_restante": 4534,
+        "dano_causado": 650
+      },
+      {
+        "nome": "Golpe Sagaz",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 15,
+        "hp_restante": 5785,
+        "dano_causado": 1300
+      }
+    ],
+    "hpOponente": 4534,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 260,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 9,
+    "hpUser": 4745,
+    "actions": [
+      {
+        "nome": "Golpe Sagaz",
+        "tipo": "dano",
+        "actor": "user",
+        "skillId": 15,
+        "hp_restante": 2454,
+        "dano_causado": 1300
+      },
+      {
+        "hits": 2,
+        "nome": "Aero Impacto",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 13,
+        "hp_restante": 4745,
+        "dano_causado": 1040
+      }
+    ],
+    "hpOponente": 2454,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 260,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 10,
+    "hpUser": 2795,
+    "actions": [
+      {
+        "tipo": "basic",
+        "actor": "user",
+        "bloqueado": false,
+        "hp_restante": 1024,
+        "dano_causado": 650
+      },
+      {
+        "nome": "Insanidade Explosiva",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 21,
+        "hp_restante": 2795,
+        "dano_causado": 1950
+      }
+    ],
+    "hpOponente": 1024,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 260,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 11,
+    "hpUser": 1170,
+    "actions": [
+      {
+        "cura": 1300,
+        "nome": "Cura Vitalizadora",
+        "tipo": "buff",
+        "actor": "user",
+        "skillId": 6,
+        "hp_restante": 244
+      },
+      {
+        "nome": "Torrente Perfurante",
+        "tipo": "dano",
+        "actor": "opponent",
+        "skillId": 7,
+        "hp_restante": 1170,
+        "dano_causado": 975,
+        "ignorou_armor": true
+      }
+    ],
+    "hpOponente": 244,
+    "status_effects": [
+      {
+        "alvo": "user",
+        "efeitos": [
+          {
+            "dano": 1950,
+            "nome": "Julgamento Celestial",
+            "tipo": "delayed"
+          }
+        ]
+      },
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 260,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "turn": 12,
+    "hpUser": 1170,
+    "actions": [],
+    "hpOponente": -536,
+    "status_effects": [
+      {
+        "alvo": "opponent",
+        "efeitos": [
+          {
+            "dano": 260,
+            "nome": "Espectro Infernal ",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Chuva Meteórica",
+            "tipo": "dot"
+          },
+          {
+            "dano": 260,
+            "nome": "Maldição Necro",
+            "tipo": "dot"
+          }
+        ]
+      }
+    ]
+  }
+]

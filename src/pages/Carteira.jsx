@@ -5,8 +5,11 @@ import { getUserById } from '../services/service';
 import Header from '../components/Header';
 import Nav from '../components/Nav';
 import './Carteira.css';
+import BattleLog from '../components/Logview';
 
 const Carteira = () => {
+  const [mostrarLog, setMostrarLog] = useState(false);
+
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [userData, setUserData] = useState(null);
@@ -75,15 +78,28 @@ const Carteira = () => {
             onChange={(e) => setValor(e.target.value)}
           />
 
-          <button className="depositar-btn" onClick={depositar}>
-            Depositar
+          <button
+            className="depositar-btn"
+            onClick={() => setMostrarLog(true)}
+          >
+            📜 Ver Log da Batalha
           </button>
+
         </div>
 
         <div className="nav-menu">
           <Nav />
         </div>
       </main>
+      {mostrarLog && (
+        <BattleLog
+          userName={userData?.nome ?? 'Jogador'}
+          oponenteName="Oponente"
+          onClose={() => setMostrarLog(false)}
+        />
+      )}
+
+
     </div>
   );
 };

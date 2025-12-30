@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   padding-top: 3rem;
@@ -25,7 +25,7 @@
   border: 2px solid rgba(240, 145, 36, 0.3);
   overflow: hidden;
   flex: 1;
-  margin-top: 2rem;
+  margin-top: 0.9rem;
 }
 
 .inventory-modal-close {
@@ -56,7 +56,7 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 30px;
+  padding: 1.5rem;
   background: linear-gradient(90deg, rgba(240, 145, 36, 0.2), transparent);
   border-bottom: 2px solid rgba(240, 145, 36, 0.3);
 }
@@ -137,7 +137,7 @@
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
   border: 2px solid rgba(240, 145, 36, 0.3);
   border-radius: 15px;
-  padding: 20px;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -155,10 +155,6 @@
   width: 50%;
   height: 150px;
   object-fit: contain;
-  border-radius: 10px;
-  color: white;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.5rem;
 }
 
 .inventory-item-icon {
@@ -166,9 +162,7 @@
   justify-content: space-between;
   align-items: center;
   height: 150px;
-  background: rgba(0, 0, 0, 0.3);
   border-radius: 10px;
-  padding-right: 0.5rem;
 }
 
 .inventory-item-info h3 {
@@ -190,7 +184,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  margin-top: 8px;
+  margin: 8px 0;
 }
 
 .item-quantity {
@@ -222,7 +216,6 @@
   border-radius: 20px;
   font-size: 12px;
   font-weight: bold;
-  display: inline-block;
 }
 
 .inventory-item-actions {
@@ -302,7 +295,6 @@
 }
 
 .xp-item {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.05));
   border-color: rgba(255, 215, 0, 0.4);
 }
 
@@ -314,8 +306,8 @@
 /* Responsivo */
 @media (max-width: 380px) {
   .inventory-modal-content {
-    width: 95%;
     max-height: 85vh;
+    margin-top: 0.9rem;
   }
 
   .inventory-grid {
@@ -323,7 +315,7 @@
   }
 
   .inventory-header {
-    padding: 20px;
+    padding: 1rem;
   }
 
   .inventory-header h2 {

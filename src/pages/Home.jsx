@@ -161,8 +161,6 @@ const Home = () => {
         {lootNotification && (
           <div className="loot-modal-overlay" onClick={() => setLootNotification(null)}>
             <div className="loot-modal-content" onClick={(e) => e.stopPropagation()}>
-
-
               <div className="loot-items-grid">
                 {groupLootItems(lootNotification).map((item, index) => (
                   <div key={index} className="loot-item-card">
@@ -204,6 +202,7 @@ const Home = () => {
           onClose={() => setCharacterModalOpen(false)}
           equippedSkills={equippedSkills}
           onSkillClick={handleOpenInventory}
+          userData={userData}
         >
           <img
             src={mage}

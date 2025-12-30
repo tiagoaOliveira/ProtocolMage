@@ -1,0 +1,493 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// ==============================
+// CORS
+// ==============================
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// ==============================
+// TIPOS
+// ==============================
+type SkillResult = { tipo: string; dano?: number; cura?: number };
+
+interface DoT {
+  nome: string;
+  danoPct: number;
+  turnos: number;
+  atacante: Player;
+}
+
+interface TurnAction {
+  skill_id: number;
+  skill_nome: string;
+  dano?: number;
+  cura?: number;
+}
+
+interface SkillDef {
+  id: number;
+  nome: string;
+  cooldown: number;
+  executar: (a: Player, d: Player, ctx: BattleCtx) => SkillResult;
+}
+
+
+interface Player {
+  nivel: number;
+  hp: number;
+  maxHp: number;
+  atk: number;
+
+  cooldowns: Map<number, number>;
+  skillsUsadas: Set<number>;
+  skills: number[];
+
+  dots: DoT[];
+
+  buffDanoProx: number;
+  buffPermanente: number;
+
+  escudoUsos: number;
+  escudoReducao: number;
+
+  esquiva: boolean;
+  reflexo: number;
+
+  vulneravel: number;
+  vulneravelPct: number;
+
+  atordoado: number;
+}
+
+interface BattleCtx {
+  turno: number;
+}
+
+// ==============================
+// FUNÇÕES BASE
+// ==============================
+function causarDano(atk: Player, def: Player, pct: number, usarBuff = true): number {
+  let dano = atk.atk * atk.buffPermanente * (pct / 100);
+
+  if (usarBuff && atk.buffDanoProx > 0) {
+    dano *= 1 + atk.buffDanoProx / 100;
+    atk.buffDanoProx = 0;
+  }
+
+  if (def.esquiva) {
+    def.esquiva = false;
+    return 0;
+  }
+
+  if (def.reflexo > 0) {
+    const ref = Math.round(dano * def.reflexo / 100);
+    atk.hp -= ref;
+    def.reflexo = 0;
+    return 0;
+  }
+
+  if (def.escudoUsos > 0) {
+    dano *= 1 - def.escudoReducao / 100;
+    def.escudoUsos--;
+  }
+
+  if (def.vulneravel > 0) {
+    dano *= 1 + def.vulneravelPct / 100;
+  }
+
+  dano = Math.round(dano);
+  def.hp -= dano;
+  return dano;
+}
+
+function aplicarDot(def: Player, atk: Player, nome: string, danoPct: number, turnos: number) {
+  def.dots.push({ nome, danoPct, turnos, atacante: atk });
+}
+
+// ==============================
+// SKILLS
+// ==============================
+const SKILLS: Record<number, SkillDef> = {
+  1: {
+    id: 1,
+    nome: 'Ataque Básico',
+    cooldown: 0,
+    executar: (a, d) => ({ tipo: 'basico', dano: causarDano(a, d, 100) })
+  },
+
+  4: {
+    id: 4,
+    nome: 'Chuva Astral',
+    cooldown: 7,
+    executar: (a, d) => {
+      aplicarDot(d, a, 'Chuva Astral', 70, 3);
+      return { tipo: 'dot' };
+    }
+  },
+
+  5: {
+    id: 5,
+    nome: 'Escudo Arcano',
+    cooldown: 6,
+    executar: (a) => {
+      a.escudoUsos = 3;
+      a.escudoReducao = 20;
+      return { tipo: 'buff' };
+    }
+  },
+
+  6: {
+    id: 6,
+    nome: 'Cura Vitalizadora',
+    cooldown: 5,
+    executar: (a) => {
+      const cura = Math.round(a.maxHp * 0.2);
+      a.hp = Math.min(a.maxHp, a.hp + cura);
+      a.buffDanoProx = 50;
+      return { tipo: 'cura', cura };
+    }
+  },
+
+  7: {
+    id: 7,
+    nome: 'Torrente Perfurante',
+    cooldown: 6,
+    executar: (a, d) => ({ tipo: 'dano', dano: causarDano(a, d, 150) })
+  },
+
+  8: {
+    id: 8,
+    nome: 'Esquiva Fantasma',
+    cooldown: 7,
+    executar: (a) => (a.esquiva = true, { tipo: 'buff' })
+  },
+
+  9: {
+    id: 9,
+    nome: 'Julgamento Celestial',
+    cooldown: 7,
+    executar: (a, d) => {
+      aplicarDot(d, a, 'Julgamento Celestial', 250, 5);
+      return { tipo: 'invocacao' };
+    }
+  },
+
+  10: {
+    id: 10,
+    nome: 'Espelho Mágico',
+    cooldown: 4,
+    executar: (a) => (a.reflexo = 50, { tipo: 'buff' })
+  },
+
+  11: {
+    id: 11,
+    nome: 'Levitação',
+    cooldown: 6,
+    executar: (_, d) => (d.atordoado = 1, { tipo: 'debuff' })
+  },
+
+  12: {
+    id: 12,
+    nome: 'Espectro Infernal',
+    cooldown: 99,
+    executar: (a, d) => {
+      aplicarDot(d, a, 'Espectro Infernal', 25, 99);
+      return { tipo: 'dot' };
+    }
+  },
+
+  13: {
+    id: 13,
+    nome: 'Aero Impacto',
+    cooldown: 2,
+    executar: (a, d) => {
+      const d1 = causarDano(a, d, 80, true);
+      const d2 = causarDano(a, d, 80, false);
+      return { tipo: 'multi', dano: d1 + d2 };
+    }
+  },
+
+  14: {
+    id: 14,
+    nome: 'Foco',
+    cooldown: 99,
+    executar: (a) => (a.buffPermanente *= 1.15, { tipo: 'buff_permanente' })
+  },
+
+  15: {
+    id: 15,
+    nome: 'Golpe Sagaz',
+    cooldown: 4,
+    executar: (a, d) => ({ tipo: 'dano', dano: causarDano(a, d, 200) })
+  },
+  16: {
+    id: 16,
+    nome: 'Chuva Meteórica',
+    cooldown: 99,
+    executar: (a, d) => {
+      aplicarDot(d, a, 'Chuva Meteórica', 25, 99);
+      return { tipo: 'dot' };
+    }
+  },
+
+  17: {
+    id: 17,
+    nome: 'Impacto Amaldiçoado',
+    cooldown: 5,
+    executar: (a, d) => {
+      const dano = causarDano(a, d, 150);
+      d.vulneravel = 1;
+      d.vulneravelPct = 20;
+      return { tipo: 'dano', dano };
+    }
+  },
+
+  18: {
+    id: 18,
+    nome: 'Execução',
+    cooldown: 5,
+    executar: (a, d) => {
+      const pct = (d.hp / d.maxHp) * 100 < 30 ? 250 : 150;
+      return { tipo: 'execucao', dano: causarDano(a, d, pct) };
+    }
+  },
+
+  19: {
+    id: 19,
+    nome: 'Maldição Necro',
+    cooldown: 99,
+    executar: (a, d) => {
+      aplicarDot(d, a, 'Maldição Necro', 25, 99);
+      return { tipo: 'dot' };
+    }
+  },
+
+  20: {
+    id: 20,
+    nome: 'Projeção Maldita',
+    cooldown: 5,
+    executar: (a, d) => {
+      d.vulneravel = 2;
+      d.vulneravelPct = 20;
+      return { tipo: 'debuff' };
+    }
+  },
+
+  21: {
+    id: 21,
+    nome: 'Insanidade Explosiva',
+    cooldown: 7,
+    executar: (a, d) => {
+      const dano = causarDano(a, d, 300);
+      a.vulneravel = 1;
+      a.vulneravelPct = 50;
+      return { tipo: 'recoil', dano };
+    }
+  }
+};
+
+
+// ==============================
+// COMBATE
+// ==============================
+function processarDots(p: Player) {
+  p.dots = p.dots.filter(dot => {
+    causarDano(dot.atacante, p, dot.danoPct, false);
+    dot.turnos--;
+    return dot.turnos > 0;
+  });
+}
+
+function executarTurno(
+  player: Player,
+  enemy: Player,
+  ctx: BattleCtx
+): TurnAction {
+
+  const skillId =
+    player.skills.find(id =>
+      !player.cooldowns.has(id) &&
+      !player.skillsUsadas.has(id)
+    ) ?? 1;
+
+  const skill = SKILLS[skillId] ?? SKILLS[1];
+  const res = skill.executar(player, enemy, ctx);
+
+  if (skill.cooldown >= 99) {
+    player.skillsUsadas.add(skillId);
+  } else if (skill.cooldown > 0) {
+    player.cooldowns.set(skillId, skill.cooldown);
+  }
+
+  return {
+    skill_id: skill.id,
+    skill_nome: skill.nome,
+    dano: res.dano,
+    cura: res.cura
+  };
+}
+
+
+function atualizarCooldowns(p: Player) {
+  for (const [id, cd] of p.cooldowns.entries()) {
+    if (cd > 1) p.cooldowns.set(id, cd - 1);
+    else p.cooldowns.delete(id);
+  }
+}
+
+function simularBatalha(user: Player, enemy: Player) {
+  const ctx: BattleCtx = { turno: 0 };
+  const log: any[] = [
+    {
+      turno: 0,
+      estado_inicial: {
+        user: {
+          nivel: user.nivel,
+          hp: user.hp,
+          atk: user.atk
+        },
+        enemy: {
+          nivel: enemy.nivel,
+          hp: enemy.hp,
+          atk: enemy.atk
+        }
+      }
+    }
+  ];
+
+  while (user.hp > 0 && enemy.hp > 0 && ctx.turno < 50) {
+    ctx.turno++;
+
+    processarDots(user);
+    const a1 = executarTurno(user, enemy, ctx);
+    atualizarCooldowns(user);
+    if (enemy.hp <= 0) break;
+
+    processarDots(enemy);
+    const a2 = executarTurno(enemy, user, ctx);
+    atualizarCooldowns(enemy);
+    if (user.hp <= 0) break;
+
+    log.push({
+      turno: ctx.turno,
+      user: {
+        nivel: user.nivel,
+        hp: user.hp,
+        atk: user.atk,
+        skill_id: a1.skill_id,
+        skill_nome: a1.skill_nome,
+        dano: a1.dano,
+        cura: a1.cura
+      },
+      enemy: {
+        nivel: enemy.nivel,
+        hp: enemy.hp,
+        atk: enemy.atk,
+        skill_id: a2.skill_id,
+        skill_nome: a2.skill_nome,
+        dano: a2.dano,
+        cura: a2.cura
+      }
+    });
+  }
+
+  return {
+    vencedor: user.hp > 0 ? 'user' : 'enemy',
+    log
+  };
+}
+
+  // ==============================
+  // EDGE FUNCTION
+  // ==============================
+  Deno.serve(async (req) => {
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders });
+    }
+
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      const { user_id, oponente_id } = await req.json();
+
+      const getPlayer = async (id: string) => {
+        const { data: user } = await supabase
+          .from('users')
+          .select('id, nivel, base_hp, base_attack')
+          .eq('id', id)
+          .single();
+
+        const { data: skills } = await supabase
+          .from('user_skills')
+          .select('skill_id, slot')
+          .eq('user_id', id)
+          .order('slot');
+
+        const nivel = user.nivel || 1;
+        const hp = Math.round(user.base_hp * (1 + nivel * 0.2));
+        const atk = Math.round(user.base_attack * (1 + nivel * 0.2));
+
+        const player: Player = {
+          nivel,
+          hp,
+          maxHp: hp,
+          atk,
+          skills: skills.map(s => s.skill_id),
+
+          cooldowns: new Map(),
+          skillsUsadas: new Set(),
+          dots: [],
+
+          buffDanoProx: 0,
+          buffPermanente: 1,
+
+          escudoUsos: 0,
+          escudoReducao: 0,
+
+          esquiva: false,
+          reflexo: 0,
+
+          vulneravel: 0,
+          vulneravelPct: 0,
+
+          atordoado: 0
+        };
+
+        return player;
+      };
+
+      const user = await getPlayer(user_id);
+      const enemy = await getPlayer(oponente_id);
+
+      const resultado = simularBatalha(user, enemy);
+      const vencedor_id = resultado.vencedor === 'user' ? user_id : oponente_id;
+
+      const { data: batalha } = await supabase
+        .from('batalhas')
+        .insert({
+          user_id,
+          oponente_id,
+          vencedor_id,
+          log_turnos: resultado.log
+        })
+        .select()
+        .single();
+
+      return new Response(
+        JSON.stringify({ batalha, vencedor_id }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+
+    } catch (e: any) {
+      return new Response(
+        JSON.stringify({ error: e.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  });

@@ -14,10 +14,11 @@ CREATE TABLE public.users (
 -- RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "users_select_own"
-ON public.users
+CREATE POLICY "users_select_all"
+ON users
 FOR SELECT
-USING (auth.uid() = id);
+TO public
+USING (true);
 
 CREATE POLICY "users_update_own"
 ON public.users
