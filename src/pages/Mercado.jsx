@@ -11,6 +11,8 @@ import {
 import Header from '../components/Header';
 import Nav from '../components/Nav';
 import './Mercado.css';
+import Toast, { useToast } from '../components/Toast';
+import ConfirmModal, { useConfirm } from '../components/ConfirmModal';
 
 const Mercado = () => {
   const { user, signOut } = useAuth();
@@ -20,6 +22,8 @@ const Mercado = () => {
   const [listings, setListings] = useState([]);
   const [myListings, setMyListings] = useState([]);
   const [selectedFilter, setSelectedFilter] = useState(null);
+  const { toasts, showToast, removeToast } = useToast();
+  const { confirmState, showConfirm } = useConfirm();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -64,32 +68,44 @@ const Mercado = () => {
   };
 
   const handleBuy = async (listingId) => {
-    if (!confirm('Confirma a compra deste item?')) return;
+    const confirmed = await showConfirm({
+      title: 'Confirmar compra?',
+      confirmText: 'Comprar',
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
 
     try {
       await buyFromMarketplace(user.id, listingId);
-      alert('Item comprado com sucesso!');
+      showToast('Item comprado com sucesso!', 'success');
       loadMarketplace();
-
       const updatedData = await getUserById(user.id);
       setUserData(updatedData);
     } catch (error) {
       console.error('Erro ao comprar:', error);
-      alert(error.message || 'Erro ao comprar item');
+      showToast(error.message || 'Erro ao comprar item', 'error');
     }
   };
 
   const handleCancelListing = async (listingId) => {
-    if (!confirm('Deseja cancelar este anúncio?')) return;
+    const confirmed = await showConfirm({
+      title: 'Cancelar anúncio?',
+      confirmText: 'Cancelar',
+      cancelText: 'Voltar',
+      type: 'danger'
+    });
+
+    if (!confirmed) return;
 
     try {
       await cancelMarketplaceListing(user.id, listingId);
-      alert('Anúncio cancelado com sucesso!');
+      showToast('Anúncio cancelado com sucesso!', 'success');
       loadMyListings();
       loadMarketplace();
     } catch (error) {
       console.error('Erro ao cancelar:', error);
-      alert('Erro ao cancelar anúncio');
+      showToast('Erro ao cancelar anúncio', 'error');
     }
   };
 
@@ -132,7 +148,7 @@ const Mercado = () => {
                 Frascos de XP
               </button>
             </div>
-            
+
             <div className="categoria">
               <button onClick={() => setSelectedFilter('my_listings')}>
                 Meus Anúncios
@@ -196,9 +212,14 @@ const Mercado = () => {
         <div className="nav-menu">
           <Nav />
         </div>
+
       </main>
+      <Toast toasts={toasts} onRemove={removeToast} />
+      <ConfirmModal {...confirmState} />
     </div>
+
   );
+
 };
 
 export default Mercado;

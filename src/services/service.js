@@ -86,11 +86,13 @@ export const toggleSkillEquipped = async (userId, skillId, slot = null) => {
   return data;
 };
 
-export const convertSkillToXP = async (userId, skillId, quantidade = 1) => {
-  const { data, error } = await supabase.rpc('convert_skill_to_xp', {
+// ============================================
+// EQUIPAR BUILD EM LOTE (OTIMIZADO)
+// ============================================
+export const equipBuildBatch = async (userId, skillSlots) => {
+  const { data, error } = await supabase.rpc('equip_build_batch', {
     p_user_id: userId,
-    p_skill_id: skillId,
-    p_quantidade: quantidade
+    p_skill_slots: skillSlots
   });
 
   if (error) throw error;
@@ -200,7 +202,7 @@ export const getBuildDetails = async (buildId) => {
 };
 
 // ============================================
-// MARKETPLACE
+// MARKETPLACE - OTIMIZADO COM JOINS
 // ============================================
 export const listItemOnMarketplace = async (userId, itemType, itemId, quantidade, preco) => {
   const { data, error } = await supabase.rpc('list_item_on_marketplace', {
@@ -216,43 +218,96 @@ export const listItemOnMarketplace = async (userId, itemType, itemId, quantidade
 };
 
 export const getMarketplaceListings = async (itemType = null) => {
-  let query = supabase
-    .from('marketplace_listings')
-    .select(`
-      *,
-      seller:users!seller_id(id, nome, avatar)
-    `)
-    .eq('status', 'ativa')
-    .order('created_at', { ascending: false });
+  try {
+    // Primeiro buscar as listagens
+    let query = supabase
+      .from('marketplace_listings')
+      .select('*')
+      .eq('status', 'ativa')
+      .order('created_at', { ascending: false });
 
-  if (itemType) {
-    query = query.eq('item_type', itemType);
+    if (itemType && itemType !== 'my_listings') {
+      query = query.eq('item_type', itemType);
+    }
+
+    const { data: listings, error } = await query;
+    if (error) throw error;
+
+    if (!listings || listings.length === 0) {
+      return [];
+    }
+
+    // Buscar dados dos vendedores
+    const sellerIds = [...new Set(listings.map(l => l.seller_id))];
+    const { data: sellers, error: sellersError } = await supabase
+      .from('users')
+      .select('id, nome, avatar')
+      .in('id', sellerIds);
+
+    if (sellersError) throw sellersError;
+
+    // Criar mapa de vendedores para acesso rápido
+    const sellersMap = {};
+    (sellers || []).forEach(seller => {
+      sellersMap[seller.id] = seller;
+    });
+
+    // Separar skills e xp_items
+    const skillListings = listings.filter(l => l.item_type === 'skill');
+    const xpItemListings = listings.filter(l => l.item_type === 'xp_item');
+
+    // Buscar detalhes dos itens em paralelo
+    const [skillsData, xpItemsData] = await Promise.all([
+      // Skills
+      skillListings.length > 0
+        ? supabase
+            .from('skills')
+            .select('*')
+            .in('id', skillListings.map(l => l.item_id))
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return data || [];
+            })
+        : Promise.resolve([]),
+      
+      // XP Items
+      xpItemListings.length > 0
+        ? supabase
+            .from('xp_item_definitions')
+            .select('*')
+            .in('id', xpItemListings.map(l => l.item_id))
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return data || [];
+            })
+        : Promise.resolve([])
+    ]);
+
+    // Criar mapas de itens
+    const skillsMap = {};
+    skillsData.forEach(skill => {
+      skillsMap[skill.id] = skill;
+    });
+
+    const xpItemsMap = {};
+    xpItemsData.forEach(item => {
+      xpItemsMap[item.id] = item;
+    });
+
+    // Combinar tudo
+    const enrichedListings = listings.map(listing => ({
+      ...listing,
+      seller: sellersMap[listing.seller_id] || null,
+      item_details: listing.item_type === 'skill'
+        ? skillsMap[listing.item_id]
+        : xpItemsMap[listing.item_id]
+    }));
+
+    return enrichedListings;
+  } catch (error) {
+    console.error('Erro ao buscar marketplace:', error);
+    throw error;
   }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  const listingsWithDetails = await Promise.all(
-    data.map(async (listing) => {
-      if (listing.item_type === 'skill') {
-        const { data: skill } = await supabase
-          .from('skills')
-          .select('*')
-          .eq('id', listing.item_id)
-          .single();
-        return { ...listing, item_details: skill };
-      } else {
-        const { data: xpItem } = await supabase
-          .from('xp_item_definitions')
-          .select('*')
-          .eq('id', listing.item_id)
-          .single();
-        return { ...listing, item_details: xpItem };
-      }
-    })
-  );
-
-  return listingsWithDetails;
 };
 
 export const buyFromMarketplace = async (userId, listingId) => {
@@ -276,39 +331,76 @@ export const cancelMarketplaceListing = async (userId, listingId) => {
 };
 
 export const getUserListings = async (userId) => {
-  const { data, error } = await supabase
-    .from('marketplace_listings')
-    .select('*')
-    .eq('seller_id', userId)
-    .order('created_at', { ascending: false });
+  try {
+    // Primeiro buscar as listagens do usuário
+    const { data: listings, error } = await supabase
+      .from('marketplace_listings')
+      .select('*')
+      .eq('seller_id', userId)
+      .order('created_at', { ascending: false });
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const listingsWithDetails = await Promise.all(
-    data.map(async (listing) => {
-      if (listing.item_type === 'skill') {
-        const { data: skill } = await supabase
-          .from('skills')
-          .select('*')
-          .eq('id', listing.item_id)
-          .single();
+    if (!listings || listings.length === 0) {
+      return [];
+    }
 
-        return { ...listing, item_details: skill };
-      } else {
-        const { data: xpItem } = await supabase
-          .from('xp_item_definitions')
-          .select('*')
-          .eq('id', listing.item_id)
-          .single();
+    // Separar skills e xp_items
+    const skillListings = listings.filter(l => l.item_type === 'skill');
+    const xpItemListings = listings.filter(l => l.item_type === 'xp_item');
 
-        return { ...listing, item_details: xpItem };
-      }
-    })
-  );
+    // Buscar detalhes dos itens em paralelo
+    const [skillsData, xpItemsData] = await Promise.all([
+      // Skills
+      skillListings.length > 0
+        ? supabase
+            .from('skills')
+            .select('*')
+            .in('id', skillListings.map(l => l.item_id))
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return data || [];
+            })
+        : Promise.resolve([]),
+      
+      // XP Items
+      xpItemListings.length > 0
+        ? supabase
+            .from('xp_item_definitions')
+            .select('*')
+            .in('id', xpItemListings.map(l => l.item_id))
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return data || [];
+            })
+        : Promise.resolve([])
+    ]);
 
-  return listingsWithDetails;
+    // Criar mapas de itens
+    const skillsMap = {};
+    skillsData.forEach(skill => {
+      skillsMap[skill.id] = skill;
+    });
+
+    const xpItemsMap = {};
+    xpItemsData.forEach(item => {
+      xpItemsMap[item.id] = item;
+    });
+
+    // Combinar tudo
+    const enrichedListings = listings.map(listing => ({
+      ...listing,
+      item_details: listing.item_type === 'skill'
+        ? skillsMap[listing.item_id]
+        : xpItemsMap[listing.item_id]
+    }));
+
+    return enrichedListings;
+  } catch (error) {
+    console.error('Erro ao buscar listagens do usuário:', error);
+    throw error;
+  }
 };
-
 
 // ============================================
 // TRANSAÇÕES
@@ -453,7 +545,7 @@ export default {
   getUserSkills,
   getEquippedSkills,
   toggleSkillEquipped,
-  convertSkillToXP,
+  equipBuildBatch,
   getUserXPItems,
   useXPItem,
   getUserBuilds,

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import "./Character.css";
 import { X, Sword, Heart, Save, Upload, Edit2, Trash2, Plus } from "lucide-react";
-import { getUserSkills, getUserBuilds, saveCurrentBuild, loadBuild, updateBuild, deleteBuild, toggleSkillEquipped } from "../services/service";
+import { getUserSkills, getUserBuilds, saveCurrentBuild, loadBuild, updateBuild, deleteBuild, equipBuildBatch } from "../services/service";
 import Toast, { useToast } from './Toast';
+import ConfirmModal, { useConfirm } from './ConfirmModal';
 
 export default function CharacterModal({
   isOpen,
@@ -22,6 +23,7 @@ export default function CharacterModal({
   const [loading, setLoading] = useState(false);
   const [tempBuild, setTempBuild] = useState([]);
   const { toasts, showToast, removeToast } = useToast();
+  const { confirmState, showConfirm } = useConfirm();
 
   useEffect(() => {
     if (showBuildModal) {
@@ -89,34 +91,47 @@ export default function CharacterModal({
     }
   };
 
-  const handleLoadBuild = async (buildId) => {
-    if (!confirm("Carregar esta build? Seus slots atuais serão substituídos.")) return;
+  const handleLoadBuildToTemp = async (build) => {
+    const buildSlots = [
+      build.slot_1,
+      build.slot_2,
+      build.slot_3,
+      build.slot_4,
+      build.slot_5,
+      build.slot_6
+    ];
 
-    try {
-      setLoading(true);
-      await loadBuild(userData.id, buildId);
-      showToast("Build carregada!");
-      setShowBuildModal(false);
-      if (onSkillClick) onSkillClick();
-    } catch (error) {
-      console.error("Erro ao carregar build:", error);
-      showToast(error.message || "Erro ao carregar build");
-    } finally {
-      setLoading(false);
-    }
+    // Buscar as skills completas
+    const skillsWithDetails = await Promise.all(
+      buildSlots.map(async (skillId) => {
+        if (!skillId) return null;
+        const userSkills = availableSkills.find(us => us.skill_id === skillId);
+        return userSkills || null;
+      })
+    );
+
+    setTempBuild(skillsWithDetails);
+    showToast(`Build "${build.nome}" carregada na área temporária`, "info");
   };
 
   const handleDeleteBuild = async (buildId) => {
-    if (!confirm("Deletar esta build permanentemente?")) return;
+    const confirmed = await showConfirm({
+      title: 'Deletar Build?',
+      message: 'Essa ação não pode ser desfeita',
+      confirmText: 'Deletar',
+      cancelText: 'Voltar',
+      type: 'warning'
+    });
+    if (!confirmed) return;
 
     try {
       setLoading(true);
       await deleteBuild(userData.id, buildId);
-      showToast("Build deletada!");
+      showToast("Build deletada!", "success");
       await loadSkillsAndBuilds();
     } catch (error) {
       console.error("Erro ao deletar build:", error);
-      showToast("Erro ao deletar build");
+      showToast("Erro ao deletar build", "error");
     } finally {
       setLoading(false);
     }
@@ -145,28 +160,39 @@ export default function CharacterModal({
   };
 
   const handleEquipTempBuild = async () => {
-    if (!confirm("Equipar esta build? Seus slots atuais serão substituídos.")) return;
+    const confirmed = await showConfirm({
+      title: 'Equipar Build?',
+      message: 'Seus slots atuais serão substituídos.',
+      confirmText: 'Equipar',
+      cancelText: 'Voltar',
+      type: 'warning'
+    });
+    if (!confirmed) return;
 
     try {
       setLoading(true);
 
-      // Primeiro desequipar todas as skills
-      const currentEquipped = await getUserSkills(userData.id);
-      for (const userSkill of currentEquipped.filter(s => s.slot !== null)) {
-        await toggleSkillEquipped(userData.id, userSkill.skill_id, null);
-      }
+      // Preparar array de skills para equipar
+      // Formato: [{skill_id: number, slot: number}, ...]
+      const skillSlots = tempBuild
+        .map((skill, index) => {
+          if (skill !== null && index < maxUnlockedSlots) {
+            return {
+              skill_id: skill.skill_id,
+              slot: index + 1
+            };
+          }
+          return null;
+        })
+        .filter(item => item !== null);
 
-      // Equipar as skills da build temporária
-      for (let i = 0; i < tempBuild.length; i++) {
-        if (tempBuild[i] !== null && i < maxUnlockedSlots) {
-          await toggleSkillEquipped(userData.id, tempBuild[i].skill_id, i + 1);
-        }
-      }
+      // Chama a função otimizada que faz tudo em uma única transação
+      await equipBuildBatch(userData.id, skillSlots);
 
       showToast("Build equipada com sucesso!");
       setTempBuild(Array(6).fill(null));
-      await loadSkillsAndBuilds(); // Recarrega skills no modal
-      if (onUpdate) await onUpdate(); // Atualiza no componente pai
+      await loadSkillsAndBuilds();
+      if (onUpdate) await onUpdate();
       setShowBuildModal(false);
     } catch (error) {
       console.error("Erro ao equipar build:", error);
@@ -181,9 +207,12 @@ export default function CharacterModal({
   const nivel = userData?.nivel ?? 1;
   const maxUnlockedSlots = Math.min(Math.floor(nivel / 10), 6);
 
+  // ✅ CORREÇÃO: Preencher skillSlots usando o valor de skill.slot
   const skillSlots = Array(6).fill(null);
-  equippedSkills.slice(0, 6).forEach((skill, index) => {
-    skillSlots[index] = skill;
+  equippedSkills.forEach((skill) => {
+    if (skill.slot && skill.slot >= 1 && skill.slot <= 6) {
+      skillSlots[skill.slot - 1] = skill;
+    }
   });
 
   const totalSlots = [0, 1, 2, 3, 4, 5];
@@ -303,13 +332,8 @@ export default function CharacterModal({
                       className="build-name-input"
                     />
                     <button onClick={handleSaveBuild} className="btn-save-build">
-                      {editingBuild ? <Edit2 size={18} /> : <Save size={30} color="white" />}
+                      {editingBuild ? <Edit2 size={18} color="white" /> : <Save size={30} color="white" />}
                     </button>
-                    {editingBuild && (
-                      <button onClick={() => { setEditingBuild(null); setBuildName(""); }} className="btn-cancel">
-                        Cancelar
-                      </button>
-                    )}
                   </div>
                   {/* Builds Salvas */}
                   <div>
@@ -322,22 +346,33 @@ export default function CharacterModal({
                             <div className="build-item-header">
                               <span className="build-item-name">{build.nome}</span>
                               {build.is_active && <span className="build-active-badge">Ativa</span>}
+                              
                             </div>
                             <div className="build-item-actions">
                               <button
-                                onClick={() => handleLoadBuild(build.id)}
+                                onClick={() => handleLoadBuildToTemp(build)}
                                 className="btn-load-build"
-                                title="Carregar build"
+                                title="Carregar para build temporária"
                               >
-                                <Upload size={16} /> Equipar Build
+                                <Upload size={16} /> Carregar
                               </button>
-                              <button
-                                onClick={() => startEditBuild(build)}
-                                className="btn-edit-build"
-                                title="Atualizar build"
-                              >
-                                <Edit2 size={16} />
-                              </button>
+                              {editingBuild?.id === build.id ? (
+                                <button
+                                  onClick={() => { setEditingBuild(null); setBuildName(""); }}
+                                  className="btn-cancel"
+                                  title="Cancelar edição"
+                                >
+                                  X
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => startEditBuild(build)}
+                                  className="btn-edit-build"
+                                  title="Editar nome"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleDeleteBuild(build.id)}
                                 className="btn-delete-build"
@@ -425,6 +460,7 @@ export default function CharacterModal({
         </div>
       )}
       <Toast toasts={toasts} onRemove={removeToast} />
+      <ConfirmModal {...confirmState} />
     </>
   );
 }

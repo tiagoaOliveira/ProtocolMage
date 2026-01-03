@@ -1,20 +1,21 @@
 import { useState, useEffect } from 'react';
-import { X, Star, Backpack, Sparkles, TrendingUp, ShoppingCart } from 'lucide-react';
+import { X, Star, Backpack, Sparkles, ShoppingCart } from 'lucide-react';
 import {
   getUserSkills,
   getUserXPItems,
   useXPItem,
-  convertSkillToXP,
   listItemOnMarketplace
 } from '../services/service';
 import SellModal from './SellModal';
 import './Inventory.css';
+import Toast, { useToast } from './Toast';
 
 export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
   const [activeTab, setActiveTab] = useState('skills');
   const [skills, setSkills] = useState([]);
   const [xpItems, setXpItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { toasts, showToast, removeToast } = useToast();
 
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -56,18 +57,6 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
     }
   };
 
-  const handleConvertSkill = async (skillId) => {
-    if (!confirm('Tem certeza que deseja converter esta skill em XP?')) return;
-
-    try {
-      await convertSkillToXP(userId, skillId, 1);
-      loadInventory();
-      if (onUpdate) onUpdate();
-    } catch (error) {
-      console.error('Erro ao converter skill:', error);
-    }
-  };
-
   const openSellModal = (item, itemType) => {
     setSelectedItem(item);
     setSelectedItemType(itemType);
@@ -88,12 +77,12 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
         preco
       );
 
-      alert('Item listado no marketplace com sucesso!');
+      showToast('Item listado com sucesso!');
       loadInventory();
       if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Erro ao listar item:', error);
-      alert('Erro ao listar item no marketplace');
+      showToast('Erro ao listar item.');
     }
   };
 
@@ -151,16 +140,9 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
                             )}
                             <div className="inventory-item-actions">
                               <button
-                                className="btn-convert"
-                                onClick={() => handleConvertSkill(userSkill.skill_id)}
-                                title="Converter em XP"
-                              >
-                                <TrendingUp size={18} /> Converter
-                              </button>
-                              <button
                                 className="btn-sell"
                                 onClick={() => openSellModal(userSkill, 'skill')}
-                                title="Vender no Marketplace"
+                                title="Vender no Mercado"
                               >
                                 <ShoppingCart size={18} /> Vender
                               </button>
@@ -174,7 +156,6 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
                             </p>
                             <div className="inventory-item-stats">
                               <span className="item-quantity">x{userSkill.quantidade}</span>
-                              <span className="item-xp">{userSkill.skill.xp_skill} XP</span>
                             </div>
                           </div>
                         </div>
@@ -246,6 +227,7 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
         itemType={selectedItemType}
         onConfirm={handleSellConfirm}
       />
+      <Toast toasts={toasts} onRemove={removeToast} />
     </>
   );
 }

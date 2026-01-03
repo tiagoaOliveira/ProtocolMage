@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import Nav from '../components/Nav';
 import BattleLog from '../components/BattleLog';
 import './Torneio.css';
+import Toast, { useToast } from '../components/Toast';
 
 const Torneio = () => {
   const { user, signOut } = useAuth();
@@ -15,6 +16,7 @@ const Torneio = () => {
   const [loading, setLoading] = useState(true);
   const [batalhaAtiva, setBatalhaAtiva] = useState(null);
   const [processando, setProcessando] = useState(false);
+  const { toasts, showToast, removeToast } = useToast();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,7 +50,7 @@ const Torneio = () => {
 
   const handleDesafiar = async (oponenteId) => {
     if (oponenteId === user.id) {
-      alert('Você não pode desafiar a si mesmo!');
+      showToast('Você não pode desafiar a si mesmo!');
       return;
     }
 
@@ -58,7 +60,7 @@ const Torneio = () => {
       setBatalhaAtiva(resultado.batalha);
     } catch (error) {
       console.error('Erro ao iniciar batalha:', error);
-      alert('Erro ao iniciar batalha. Tente novamente.');
+      showToast('Erro ao iniciar batalha. Tente novamente.');
     } finally {
       setProcessando(false);
     }
@@ -148,6 +150,7 @@ const Torneio = () => {
           onClose={fecharBatalha}
         />
       )}
+      <Toast toasts={toasts} onRemove={removeToast} />
     </div>
   );
 };

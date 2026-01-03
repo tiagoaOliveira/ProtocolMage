@@ -68,7 +68,7 @@ export default function SellModal({ isOpen, onClose, item, itemType, onConfirm }
         </div>
 
         <div className="modal-actions">
-          <button className="btn btn-cancel" onClick={onClose}>
+          <button className="btn btn-sell-cancel" onClick={onClose}>
             Cancelar
           </button>
           <button className="btn btn-submit" onClick={handleSubmit}>

@@ -159,6 +159,7 @@
 }
 
 .inventory-item-icon {
+  display: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -193,12 +194,6 @@
   color: #f09124;
   padding: 5px 12px;
   border-radius: 20px;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.item-xp {
-  color: #FFD700;
   font-weight: bold;
   font-size: 14px;
 }
