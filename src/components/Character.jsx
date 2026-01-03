@@ -1,5 +1,8 @@
-import "./Character.css"
-import { X, Sword, Heart } from "lucide-react";
+import { useState, useEffect } from "react";
+import "./Character.css";
+import { X, Sword, Heart, Save, Upload, Edit2, Trash2, Plus } from "lucide-react";
+import { getUserSkills, getUserBuilds, saveCurrentBuild, loadBuild, updateBuild, deleteBuild, toggleSkillEquipped } from "../services/service";
+import Toast, { useToast } from './Toast';
 
 export default function CharacterModal({
   isOpen,
@@ -7,12 +10,176 @@ export default function CharacterModal({
   children,
   equippedSkills = [],
   onSkillClick,
-  userData
+  onUpdate,
+  userData,
+
 }) {
+  const [showBuildModal, setShowBuildModal] = useState(false);
+  const [availableSkills, setAvailableSkills] = useState([]);
+  const [userBuilds, setUserBuilds] = useState([]);
+  const [buildName, setBuildName] = useState("");
+  const [editingBuild, setEditingBuild] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [tempBuild, setTempBuild] = useState([]);
+  const { toasts, showToast, removeToast } = useToast();
+
+  useEffect(() => {
+    if (showBuildModal) {
+      // Inicializa com as skills atualmente equipadas
+      const initialBuild = Array(6).fill(null);
+      equippedSkills.forEach((skill) => {
+        if (skill.slot && skill.slot >= 1 && skill.slot <= 6) {
+          initialBuild[skill.slot - 1] = skill;
+        }
+      });
+      setTempBuild(initialBuild);
+    }
+  }, [showBuildModal, equippedSkills]);
+
+  useEffect(() => {
+    if (showBuildModal && userData?.id) {
+      loadSkillsAndBuilds();
+    }
+  }, [showBuildModal, userData?.id]);
+
+  const loadSkillsAndBuilds = async () => {
+    setLoading(true);
+    try {
+      const [skills, builds] = await Promise.all([
+        getUserSkills(userData.id),
+        getUserBuilds(userData.id)
+      ]);
+      setAvailableSkills(skills || []);
+      setUserBuilds(builds || []);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveBuild = async () => {
+    if (!buildName.trim()) {
+      showToast("Digite um nome para a build");
+      return;
+    }
+
+    if (userBuilds.length >= 3 && !editingBuild) {
+      showToast("Você já tem 3 builds salvas. Delete uma para criar nova.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      if (editingBuild) {
+        await updateBuild(userData.id, editingBuild.id, buildName);
+        showToast("Build atualizada!");
+      } else {
+        await saveCurrentBuild(userData.id, buildName);
+        showToast("Build salva com sucesso!");
+      }
+      setBuildName("");
+      setEditingBuild(null);
+      await loadSkillsAndBuilds();
+    } catch (error) {
+      console.error("Erro ao salvar build:", error);
+      showToast(error.message || "Erro ao salvar build");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadBuild = async (buildId) => {
+    if (!confirm("Carregar esta build? Seus slots atuais serão substituídos.")) return;
+
+    try {
+      setLoading(true);
+      await loadBuild(userData.id, buildId);
+      showToast("Build carregada!");
+      setShowBuildModal(false);
+      if (onSkillClick) onSkillClick();
+    } catch (error) {
+      console.error("Erro ao carregar build:", error);
+      showToast(error.message || "Erro ao carregar build");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBuild = async (buildId) => {
+    if (!confirm("Deletar esta build permanentemente?")) return;
+
+    try {
+      setLoading(true);
+      await deleteBuild(userData.id, buildId);
+      showToast("Build deletada!");
+      await loadSkillsAndBuilds();
+    } catch (error) {
+      console.error("Erro ao deletar build:", error);
+      showToast("Erro ao deletar build");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditBuild = (build) => {
+    setEditingBuild(build);
+    setBuildName(build.nome);
+  };
+
+  const addSkillToTempBuild = (skill) => {
+    const emptyIndex = tempBuild.findIndex(slot => slot === null);
+    if (emptyIndex === -1) {
+      return;
+    }
+
+    const newTempBuild = [...tempBuild];
+    newTempBuild[emptyIndex] = skill;
+    setTempBuild(newTempBuild);
+  };
+
+  const removeSkillFromTempBuild = (index) => {
+    const newTempBuild = [...tempBuild];
+    newTempBuild[index] = null;
+    setTempBuild(newTempBuild);
+  };
+
+  const handleEquipTempBuild = async () => {
+    if (!confirm("Equipar esta build? Seus slots atuais serão substituídos.")) return;
+
+    try {
+      setLoading(true);
+
+      // Primeiro desequipar todas as skills
+      const currentEquipped = await getUserSkills(userData.id);
+      for (const userSkill of currentEquipped.filter(s => s.slot !== null)) {
+        await toggleSkillEquipped(userData.id, userSkill.skill_id, null);
+      }
+
+      // Equipar as skills da build temporária
+      for (let i = 0; i < tempBuild.length; i++) {
+        if (tempBuild[i] !== null && i < maxUnlockedSlots) {
+          await toggleSkillEquipped(userData.id, tempBuild[i].skill_id, i + 1);
+        }
+      }
+
+      showToast("Build equipada com sucesso!");
+      setTempBuild(Array(6).fill(null));
+      await loadSkillsAndBuilds(); // Recarrega skills no modal
+      if (onUpdate) await onUpdate(); // Atualiza no componente pai
+      setShowBuildModal(false);
+    } catch (error) {
+      console.error("Erro ao equipar build:", error);
+      showToast(error.message || "Erro ao equipar build");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const nivel = userData?.nivel ?? 1;
-  const maxUnlockedSlots = Math.floor(nivel / 10);
+  const maxUnlockedSlots = Math.min(Math.floor(nivel / 10), 6);
 
   const skillSlots = Array(6).fill(null);
   equippedSkills.slice(0, 6).forEach((skill, index) => {
@@ -23,60 +190,241 @@ export default function CharacterModal({
 
   const vidaBase = 100;
   const ataqueBase = 50;
-
   const vida = Math.floor(vidaBase * (1 + nivel * 0.2));
   const ataque = Math.floor(ataqueBase * (1 + nivel * 0.2));
 
-
   return (
-    <div className="character-modal" onClick={onClose}>
-      <div className="character-modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="character-modal-close" onClick={onClose}>
-          <X color="yellow" size={32} />
-        </button>
+    <>
+      <div className="character-modal" onClick={onClose}>
+        <div className="character-modal-content" onClick={(e) => e.stopPropagation()}>
+          <button className="character-modal-close" onClick={onClose}>
+            <X color="yellow" size={32} />
+          </button>
 
-        <div className="modal-infos">
-          <div className="modal-habilities">
-            {totalSlots.map((index) => {
-              const isLocked = index >= maxUnlockedSlots;
-              const unlockLevel = (index + 1) * 10;
-              const skill = skillSlots[index];
+          <div className="modal-infos">
+            <div className="modal-habilities">
+              {totalSlots.map((index) => {
+                const isLocked = index >= maxUnlockedSlots;
+                const unlockLevel = (index + 1) * 10;
+                const skill = skillSlots[index];
 
-              return (
-                <button
-                  key={index}
-                  className={`skill-slot ${skill ? 'equipped' : 'empty'} ${isLocked ? 'locked' : ''}`}
-                  onClick={!isLocked ? onSkillClick : undefined}
-                  disabled={isLocked}
-                  title={isLocked ? `Bloqueado: Nível ${unlockLevel}` : (skill ? skill.skill.name : 'Slot vazio')}
-                >
-                  {isLocked ? (
-                    <div className="lock-container">
-                      <span className="lock-icon">🔒</span>
-                      <span className="unlock-level">{unlockLevel}</span>
-                    </div>
-                  ) : skill ? (
-                    skill.skill.image ? (
-                      <img src={skill.skill.image} alt={skill.skill.name} className="skill-image" />
+                return (
+                  <button
+                    key={index}
+                    className={`skill-slot ${skill ? 'equipped' : 'empty'} ${isLocked ? 'locked' : ''}`}
+                    onClick={!isLocked ? () => setShowBuildModal(true) : undefined}
+                    disabled={isLocked}
+                    title={isLocked ? `Bloqueado: Nível ${unlockLevel}` : (skill ? skill.skill.name : 'Clique para gerenciar')}
+                  >
+                    {isLocked ? (
+                      <div className="lock-container">
+                        <span className="lock-icon">🔒</span>
+                        <span className="unlock-level">{unlockLevel}</span>
+                      </div>
+                    ) : skill ? (
+                      skill.skill.image ? (
+                        <img src={skill.skill.image} alt={skill.skill.name} className="skill-image" />
+                      ) : (
+                        <span className="skill-initial">{skill.skill.name.charAt(0)}</span>
+                      )
                     ) : (
-                      <span className="skill-initial">{skill.skill.name.charAt(0)}</span>
-                    )
-                  ) : (
-                    <span className="skill-empty-icon">+</span>
-                  )}
-                </button>
-              );
-            })}
+                      <span className="skill-empty-icon">+</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="modal-stats">
+              <p><Heart size={28} color="#ff4444" fill="red" />Vida: {vida}</p>
+              <p><Sword size={28} color="#ff8844" fill="#f35900ff" />Ataque: {ataque}</p>
+            </div>
           </div>
 
-          <div className="modal-stats">
-            <p><Heart size={28} color="#ff4444" fill="red"/>Vida: {vida}</p>
-            <p><Sword size={28} color="#ff8844" fill="#f35900ff"/>Ataque:{ataque}</p>
+          {children}
+        </div>
+      </div>
+
+      {showBuildModal && (
+        <div className="build-modal-overlay" onClick={() => setShowBuildModal(false)}>
+          <div className="build-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="build-modal-close" onClick={() => setShowBuildModal(false)}>
+              <X size={20} />
+            </button>
+
+            <h2 className="build-modal-title">Gerenciar Builds</h2>
+
+            {loading ? (
+              <div className="build-loading">Carregando...</div>
+            ) : (
+              <>
+                {/* Build Atual */}
+                <div className="build-section">
+                  <h3>⚡ Build Atual</h3>
+                  <div className="current-build-slots">
+                    {totalSlots.map((index) => {
+                      const isLocked = index >= maxUnlockedSlots;
+                      const unlockLevel = (index + 1) * 10;
+                      const skill = skillSlots[index];
+
+                      return (
+                        <div
+                          key={index}
+                          className={`current-build-slot ${skill ? 'equipped' : 'empty'} ${isLocked ? 'locked' : ''}`}
+                          title={isLocked ? `Bloqueado: Nível ${unlockLevel}` : (skill ? skill.skill.name : 'Vazio')}
+                        >
+                          {isLocked ? (
+                            <div className="lock-container">
+                              <span className="lock-icon">🔒</span>
+                              <span className="unlock-level">{unlockLevel}</span>
+                            </div>
+                          ) : skill ? (
+                            skill.skill.image ? (
+                              <img src={skill.skill.image} alt={skill.skill.name} className="skill-image" />
+                            ) : (
+                              <span className="skill-initial">{skill.skill.name.charAt(0)}</span>
+                            )
+                          ) : (
+                            <span className="skill-empty-icon">-</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Salvar Build Atual */}
+                  <div className="build-save-form">
+                    <input
+                      type="text"
+                      placeholder="Nome..."
+                      value={buildName}
+                      onChange={(e) => setBuildName(e.target.value)}
+                      maxLength={30}
+                      className="build-name-input"
+                    />
+                    <button onClick={handleSaveBuild} className="btn-save-build">
+                      {editingBuild ? <Edit2 size={18} /> : <Save size={30} color="white" />}
+                    </button>
+                    {editingBuild && (
+                      <button onClick={() => { setEditingBuild(null); setBuildName(""); }} className="btn-cancel">
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                  {/* Builds Salvas */}
+                  <div>
+                    {userBuilds.length === 0 ? (
+                      <p className="build-empty">Nenhuma build salva.</p>
+                    ) : (
+                      <div className="build-list">
+                        {userBuilds.map((build) => (
+                          <div key={build.id} className={`build-item ${build.is_active ? 'active' : ''}`}>
+                            <div className="build-item-header">
+                              <span className="build-item-name">{build.nome}</span>
+                              {build.is_active && <span className="build-active-badge">Ativa</span>}
+                            </div>
+                            <div className="build-item-actions">
+                              <button
+                                onClick={() => handleLoadBuild(build.id)}
+                                className="btn-load-build"
+                                title="Carregar build"
+                              >
+                                <Upload size={16} /> Equipar Build
+                              </button>
+                              <button
+                                onClick={() => startEditBuild(build)}
+                                className="btn-edit-build"
+                                title="Atualizar build"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteBuild(build.id)}
+                                className="btn-delete-build"
+                                title="Deletar build"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Build Temporária */}
+                <div className="build-section">
+                  <h3>🛠️ Montar Build</h3>
+                  <div className="temp-build-slots">
+                    {tempBuild.map((skill, index) => {
+                      const isLocked = index >= maxUnlockedSlots;
+                      const unlockLevel = (index + 1) * 10;
+
+                      return (
+                        <div
+                          key={index}
+                          className={`temp-build-slot ${skill ? 'equipped' : 'empty'} ${isLocked ? 'locked' : ''}`}
+                          onClick={() => skill && !isLocked ? removeSkillFromTempBuild(index) : null}
+                          title={isLocked ? `Bloqueado: Nível ${unlockLevel}` : (skill ? `${skill.skill.name} (Clique para remover)` : 'Vazio')}
+                        >
+                          {isLocked ? (
+                            <div className="lock-container">
+                              <span className="lock-icon">🔒</span>
+                              <span className="unlock-level">{unlockLevel}</span>
+                            </div>
+                          ) : skill ? (
+                            skill.skill.image ? (
+                              <img src={skill.skill.image} alt={skill.skill.name} className="skill-image" />
+                            ) : (
+                              <span className="skill-initial">{skill.skill.name.charAt(0)}</span>
+                            )
+                          ) : (
+                            <span className="skill-empty-icon">+</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={handleEquipTempBuild}
+                    className="btn-equip-temp-build"
+                    disabled={tempBuild.every(slot => slot === null)}
+                  >
+                    ⚔️ Equipar
+                  </button>
+                </div>
+
+                {/* Skills Disponíveis */}
+                <div className="build-section">
+                  <h3>✨ Skills Disponíveis</h3>
+                  <div className="build-skills-grid">
+                    {availableSkills.map((userSkill) => (
+                      <div key={userSkill.id} className="build-skill-item">
+                        <div className="skill-image-container">
+                          {userSkill.skill.image ? (
+                            <img src={userSkill.skill.image} alt={userSkill.skill.name} />
+                          ) : (
+                            <span className="skill-initial">{userSkill.skill.name.charAt(0)}</span>
+                          )}
+                        </div>
+                        <button
+                          className="btn-add-skill"
+                          onClick={() => addSkillToTempBuild(userSkill)}
+                          title={`Adicionar ${userSkill.skill.name}`}
+                        >
+                          <Plus color="white" strokeWidth={3} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
-
-        {children}
-      </div>
-    </div>
-  )
+      )}
+      <Toast toasts={toasts} onRemove={removeToast} />
+    </>
+  );
 }

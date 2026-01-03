@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import './Header.css';
+import ChancesModal from './Chances';
 
 const Header = ({ userData, onLogout }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showChances, setShowChances] = useState(false);
 
   const toggleMenu = () => {
     setMenuOpen(!menuOpen);
@@ -16,9 +18,9 @@ const Header = ({ userData, onLogout }) => {
   const xpNoNivel = xp - xpMinNivel
   const xpTotalNivel = xpProxNivel - xpMinNivel
 
-  const xpPercent = nivel >= 60 
-  ? 100 
-  : Math.min(100, Math.max(0, (xpNoNivel / xpTotalNivel) * 100));
+  const xpPercent = nivel >= 60
+    ? 100
+    : Math.min(100, Math.max(0, (xpNoNivel / xpTotalNivel) * 100));
 
 
   return (
@@ -74,9 +76,21 @@ const Header = ({ userData, onLogout }) => {
           <div className="menu-overlay" onClick={toggleMenu}></div>
           <div className="menu-dropdown">
             <button className="menu-item">Info</button>
-            <button onClick={onLogout} className="menu-item logout">
-              Sair
+            <ChancesModal isOpen={showChances}
+              onClose={() => setShowChances(false)}
+            />
+            <button
+              className='chances-button menu-item'
+              onClick={() => setShowChances(true)}
+              title="Ver Chances"
+            >
+              <p>Probabilidades</p>
             </button>
+            <div className='versao-sair'>
+              <button onClick={onLogout} className="menu-item logout">
+                Sair
+              </button>
+              <p className='versao menu-item'>Versão 1.00</p></div>
           </div>
         </>
       )}

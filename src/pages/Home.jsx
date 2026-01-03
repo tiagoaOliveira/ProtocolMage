@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import Nav from '../components/Nav';
 import CharacterModal from '../components/Character';
 import InventoryModal from '../components/Inventory';
-import { Backpack, Sparkles, Star } from 'lucide-react';
+import { Backpack, Sparkles, Star, Percent } from 'lucide-react';
 import './Home.css';
 import mageperfil from '../assets/mage-perfil.png'
 import mage from '../assets/mage.png'
@@ -145,7 +145,7 @@ const Home = () => {
                 Lutando...
               </>
             ) : (
-              'Lutar'
+              'INICIAR FARM'
             )}
           </button>
 
@@ -202,6 +202,7 @@ const Home = () => {
           onClose={() => setCharacterModalOpen(false)}
           equippedSkills={equippedSkills}
           onSkillClick={handleOpenInventory}
+          onUpdate={handleUserUpdate}
           userData={userData}
         >
           <img

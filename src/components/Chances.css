@@ -1,0 +1,292 @@
+.chances-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 0.5rem;
+  backdrop-filter: blur(1px);
+}
+
+.chances-modal-content {
+  position: relative;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid rgba(240, 145, 36, 0.5);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.chances-modal-close {
+  position: absolute;
+  top: 1.1rem;
+  right: 1rem;
+  color: #f09124;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chances-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.chances-header h2 {
+  font-size: 1.75rem;
+  font-weight: bold;
+  color: #f09124;
+  margin: 0;
+  text-shadow: 0 0 10px rgba(240, 145, 36, 0.5);
+}
+
+.chances-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Navegação */
+.chances-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rem;
+  padding-bottom: 0.5rem;
+}
+
+.btn-nav {
+  background: rgba(240, 145, 36, 0.2);
+  border: 2px solid rgba(240, 145, 36, 0.5);
+  border-radius: 50%;
+  color: #f09124;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.chances-level-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.level-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.level-range {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #f09124;
+  text-shadow: 0 0 10px rgba(240, 145, 36, 0.5);
+}
+
+/* Lista de itens */
+.chances-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.chance-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  transition: all 0.3s;
+}
+
+.chance-item:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(240, 145, 36, 0.3);
+  transform: translateX(4px);
+}
+
+.chance-item-info {
+
+  flex-shrink: 0;
+  min-width: 200px;
+}
+
+.chance-item-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+}
+
+.chance-item-percentage {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-grow: 1;
+}
+
+.chance-bar-container {
+  flex-grow: 1;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+  min-width: 100px;
+}
+
+.chance-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.6s ease;
+  box-shadow: 0 0 10px currentColor;
+  position: relative;
+}
+
+.chance-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.chance-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #f09124;
+  text-shadow: 0 0 10px rgba(240, 145, 36, 0.5);
+  min-width: 70px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.chance-symbol {
+  font-size: 1rem;
+  color: rgba(240, 145, 36, 0.8);
+  font-weight: 600;
+  margin-left: 0.15rem;
+}
+
+/* Paginação */
+.chances-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+
+.pagination-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(240, 145, 36, 0.3);
+  border: 2px solid rgba(240, 145, 36, 0.5);
+  cursor: pointer;
+  transition: all 0.3s;
+  padding: 0;
+}
+
+.pagination-dot:hover {
+  background: rgba(240, 145, 36, 0.5);
+  transform: scale(1.2);
+}
+
+.pagination-dot.active {
+  background: #f09124;
+  border-color: #f09124;
+  box-shadow: 0 0 10px rgba(240, 145, 36, 0.5);
+  transform: scale(1.3);
+}
+
+/* Informações */
+.chances-info {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(240, 145, 36, 0.2);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chances-info p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .chances-modal-content {
+    padding: 1rem;
+  }
+
+  .chances-navigation {
+    gap: 2.5rem;
+  }
+
+  .level-range {
+    font-size: 1.25rem;
+  }
+
+  .chance-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chance-item-info {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .chance-item-percentage {
+    width: 100%;
+  }
+
+  .chance-value {
+    min-width: 60px;
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .chances-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .chances-info {
+    padding: 0.75rem 1rem;
+  }
+
+  .chances-info p {
+    font-size: 0.8rem;
+  }
+
+  .chance-item-name {
+    font-size: 0.9rem;
+  }
+}

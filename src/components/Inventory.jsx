@@ -5,7 +5,6 @@ import {
   getUserXPItems,
   useXPItem,
   convertSkillToXP,
-  toggleSkillEquipped,
   listItemOnMarketplace
 } from '../services/service';
 import SellModal from './SellModal';
@@ -17,7 +16,6 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
   const [xpItems, setXpItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Estados do modal de venda
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState(null);
@@ -45,38 +43,6 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
       console.error('Erro ao carregar inventário:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleToggleEquip = async (skillId, currentSlot) => {
-    try {
-      if (currentSlot !== null) {
-        await toggleSkillEquipped(userId, skillId, null);
-      } else {
-        const equippedSkills = skills.filter(s => s.slot !== null);
-        const occupiedSlots = equippedSkills.map(s => s.slot);
-
-        let nextSlot = null;
-        for (let i = 1; i <= 6; i++) {
-          if (!occupiedSlots.includes(i)) {
-            nextSlot = i;
-            break;
-          }
-        }
-
-        if (nextSlot === null) {
-          alert('Todos os slots estão ocupados. Desequipe uma skill primeiro.');
-          return;
-        }
-
-        await toggleSkillEquipped(userId, skillId, nextSlot);
-      }
-
-      loadInventory();
-      if (onUpdate) onUpdate();
-    } catch (error) {
-      console.error('Erro ao equipar/desequipar:', error);
-      alert(error.message || 'Erro ao equipar skill');
     }
   };
 
@@ -185,24 +151,18 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
                             )}
                             <div className="inventory-item-actions">
                               <button
-                                className={`btn-equip ${userSkill.slot !== null ? 'equipped' : ''}`}
-                                onClick={() => handleToggleEquip(userSkill.skill_id, userSkill.slot)}
-                              >
-                                {userSkill.slot !== null ? 'Desequipar' : 'Equipar'}
-                              </button>
-                              <button
                                 className="btn-convert"
                                 onClick={() => handleConvertSkill(userSkill.skill_id)}
                                 title="Converter em XP"
                               >
-                                <TrendingUp size={18} />
+                                <TrendingUp size={18} /> Converter
                               </button>
                               <button
                                 className="btn-sell"
                                 onClick={() => openSellModal(userSkill, 'skill')}
                                 title="Vender no Marketplace"
                               >
-                                <ShoppingCart size={18} />
+                                <ShoppingCart size={18} /> Vender
                               </button>
                             </div>
                           </div>
@@ -214,12 +174,8 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
                             </p>
                             <div className="inventory-item-stats">
                               <span className="item-quantity">x{userSkill.quantidade}</span>
-                              {userSkill.slot !== null && (
-                              <span className="item-equipped">✓ Equipada (Slot {userSkill.slot})</span>
-                            )}
                               <span className="item-xp">{userSkill.skill.xp_skill} XP</span>
                             </div>
-                            
                           </div>
                         </div>
                       ))
@@ -260,7 +216,7 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
                                 onClick={() => openSellModal(userItem, 'xp_item')}
                                 title="Vender no Marketplace"
                               >
-                                <ShoppingCart size={18} />
+                                <ShoppingCart size={18} /> Vender
                               </button>
                             </div>
                           </div>

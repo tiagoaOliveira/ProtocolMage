@@ -86,7 +86,7 @@ const Torneio = () => {
 
       <main className="torneio-content">
         <div className="ranking-section">
-          <h2 className="ranking-title">🏆 Ranking de Jogadores</h2>
+          <h2 className="ranking-title">🏆 EM BREVE!!!</h2>
           
           {processando && (
             <div className="processing-overlay">

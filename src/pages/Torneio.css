@@ -14,7 +14,8 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+
+    min-height: 0;
 }
 
 .loading {
@@ -28,11 +29,16 @@
 
 /* Ranking */
 .ranking-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
     border: 2px solid #ffd700;
     border-radius: 16px;
-    padding: 24px;
+    padding: 24px 0;
     box-shadow: 0 8px 32px rgba(255, 215, 0, 0.2);
+    min-height: 0;
+    margin-top: 2rem;
 }
 
 .ranking-title {
@@ -44,9 +50,10 @@
 }
 
 .ranking-list {
-    display: flex;
-    flex-direction: column;
+     flex: 1;
+    overflow-y: auto;
     gap: 12px;
+    min-height: 0;
 }
 
 .ranking-item {
@@ -160,7 +167,6 @@
     font-size: 1.2rem;
     font-weight: bold;
 }
-
 
 
 /* Responsivo */

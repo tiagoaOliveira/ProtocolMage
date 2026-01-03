@@ -126,6 +126,80 @@ export const useXPItem = async (userId, itemId, quantidade = 1) => {
 };
 
 // ============================================
+// SISTEMA DE BUILDS
+// ============================================
+export const getUserBuilds = async (userId) => {
+  const { data, error } = await supabase
+    .from('user_builds')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+export const saveCurrentBuild = async (userId, nome) => {
+  const { data, error } = await supabase.rpc('save_current_build', {
+    p_user_id: userId,
+    p_nome: nome
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const loadBuild = async (userId, buildId) => {
+  const { data, error } = await supabase.rpc('load_build', {
+    p_user_id: userId,
+    p_build_id: buildId
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const updateBuild = async (userId, buildId, nome) => {
+  const { data, error } = await supabase.rpc('update_build', {
+    p_user_id: userId,
+    p_build_id: buildId,
+    p_nome: nome
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const deleteBuild = async (userId, buildId) => {
+  const { data, error } = await supabase.rpc('delete_build', {
+    p_user_id: userId,
+    p_build_id: buildId
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const getBuildDetails = async (buildId) => {
+  const { data, error } = await supabase
+    .from('user_builds')
+    .select(`
+      *,
+      slot_1_skill:slot_1(id, name, image),
+      slot_2_skill:slot_2(id, name, image),
+      slot_3_skill:slot_3(id, name, image),
+      slot_4_skill:slot_4(id, name, image),
+      slot_5_skill:slot_5(id, name, image),
+      slot_6_skill:slot_6(id, name, image)
+    `)
+    .eq('id', buildId)
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+// ============================================
 // MARKETPLACE
 // ============================================
 export const listItemOnMarketplace = async (userId, itemType, itemId, quantidade, preco) => {
@@ -209,8 +283,32 @@ export const getUserListings = async (userId) => {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data;
+
+  const listingsWithDetails = await Promise.all(
+    data.map(async (listing) => {
+      if (listing.item_type === 'skill') {
+        const { data: skill } = await supabase
+          .from('skills')
+          .select('*')
+          .eq('id', listing.item_id)
+          .single();
+
+        return { ...listing, item_details: skill };
+      } else {
+        const { data: xpItem } = await supabase
+          .from('xp_item_definitions')
+          .select('*')
+          .eq('id', listing.item_id)
+          .single();
+
+        return { ...listing, item_details: xpItem };
+      }
+    })
+  );
+
+  return listingsWithDetails;
 };
+
 
 // ============================================
 // TRANSAÇÕES
@@ -289,7 +387,6 @@ export const getBatalhaDetalhes = async (batalhaId) => {
 
 export const getRanking = async (limit = 50) => {
   try {
-    // Busca TODOS os usuários
     const { data: users, error } = await supabase
       .from('users')
       .select('id, nome, nivel')
@@ -314,12 +411,11 @@ export const getRanking = async (limit = 50) => {
         return { 
           ...user, 
           vitorias: count || 0,
-          username: user.nome || 'Sem nome' // Usa nome como username
+          username: user.nome || 'Sem nome'
         };
       })
     );
 
-    // Ordena por vitórias, depois por nível
     return usersComVitorias.sort((a, b) => {
       if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
       return (b.nivel || 1) - (a.nivel || 1);
@@ -360,6 +456,12 @@ export default {
   convertSkillToXP,
   getUserXPItems,
   useXPItem,
+  getUserBuilds,
+  saveCurrentBuild,
+  loadBuild,
+  updateBuild,
+  deleteBuild,
+  getBuildDetails,
   listItemOnMarketplace,
   getMarketplaceListings,
   buyFromMarketplace,
