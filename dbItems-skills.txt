@@ -64,3 +64,26 @@ CREATE TABLE public.batalha_efeitos (
 );
 
 CREATE INDEX idx_batalha_efeitos_lookup ON public.batalha_efeitos(batalha_id, alvo);
+
+
+insert into skills
+(id, name, image, descricao, tipo, duracao, cooldown, alvo, efeito)
+values
+(1,'Chuva Astral','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/chuva-astral.png','Invoca uma chuva que dura 3 turnos, causando 70% de dano por turno.','dot',1,7,'inimigo','{"dano":70}'),
+(2,'Escudo Arcano','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/escudo-arcano.png','3 Esferas arcana giram ao seu redor, reduzindo todo dano recebido em 10%','buff',1,6,'self','{"armor":10}'),
+(3,'Cura Vitalizadora','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/pocao-vitalizadora.png','Recupera 10% de vida e +50% dano no próximo ataque.','buff',1,8,'self','{"cura":10}'),
+(4,'Torrente Perfurante','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/torrente-perfurante.png','Ignora qualquer defesa do oponente e causa 150% de dano.','dano',1,5,'inimigo','{"dano":150,"ignora_defesa":true}'),
+(5,'Esquiva Fantasma','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/esquiva-fantasma.png','Bloqueia toda fonte de dano no próximo turno.','buff',1,7,'self','{"block":true}'),
+(6,'Julgamento Celestial','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/julgamento-celestial.png','Invoca uma torrente de magia dos céus que causa 300% de dano.','dano',1,10,'inimigo','{"dano":300}'),
+(7,'Espelho Mágico','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/espelho-magico.png','Reflete 50% de dano do próximo ataque direto.','buff',1,4,'self','{"reflect":50}'),
+(8,'Levitação','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/levitacao.png','Inimigo impossibilitado de jogar por um turno.','debuff',1,6,'inimigo','{"atordoamento":true}'),
+(9,'Espectro Infernal','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/espectro-infernal.png','Invoca um espectro que ataca o oponente todo turno. 25% de dano.','dot',99,99,'inimigo','{"dano":40}'),
+(10,'Aero Impacto','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/aero-impacto.png','Casta dois golpes de ar, causando 200% de dano.','dano',1,6,'inimigo','{"dano":200}'),
+(11,'Foco','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/foco.png','Canaliza energia para causar 15% de dano a mais todo turno.','buff',99,99,'self','{"buff_permanente":{"ataque":15}}'),
+(12,'Golpe Sagaz','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/golpe-sagaz.png','Magia curva, atinge as costas do oponente com 200% de dano','dano',1,7,'inimigo','{"dano":200,"ignora_defesa":true}'),
+(13,'Chuva Meteórica','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/chuva-meteorica.png','Chuva de meteoros que causa 25% de dano todo turno.','dot',99,99,'inimigo','{"dano":40}'),
+(14,'Impacto Amaldiçoado','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/impacto-amaldicoado.png','Causa 150% do dano e reduz 10% do ataque inimigo.','dano',1,5,'inimigo','{"dano":150,"debuff_ataque":{"ataque":-10}}'),
+(15,'Execução','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/execucao.png','Causa 150% de dano, 250% se vida do alvo for menor que 30%.','dano',1,5,'inimigo','{"dano":150,"condicional":{"dano_extra":150,"vida_abaixo":30}}'),
+(16,'Maldição Necro','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/maldicao-necro.png','Invocação necromante que causa 25% de dano todo turno.','dot',99,99,'inimigo','{"dano":40}'),
+(17,'Projeção Maldita','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/projecao-maldita.png','Projeta um espírito que faz o oponente tomar 10% de dano a mais até o fim da partida.','debuff',1,5,'inimigo','{"armor_reduction":10}'),
+(18,'Insanidade Explosiva','https://fjgunsokakbcycuiwllg.supabase.co/storage/v1/object/public/skills/insanidade-explosiva.png','Causa 300% de dano mas aumenta permanentemente todo dano recebido em 10%.','dano',1,6,'inimigo','{"dano":300,"armor_reduction":10}');

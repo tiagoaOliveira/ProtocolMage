@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import "./Character.css";
 import { X, Sword, Heart, Save, Upload, Edit2, Trash2, Plus } from "lucide-react";
-import { getUserSkills, getUserBuilds, saveCurrentBuild, loadBuild, updateBuild, deleteBuild, equipBuildBatch } from "../services/service";
+import { getUserSkills, getUserBuilds, saveCurrentBuild, updateBuild, deleteBuild, equipBuildBatch } from "../services/service";
 import Toast, { useToast } from './Toast';
 import ConfirmModal, { useConfirm } from './ConfirmModal';
 
@@ -362,7 +362,7 @@ export default function CharacterModal({
                                   className="btn-cancel"
                                   title="Cancelar edição"
                                 >
-                                  X
+                                  <X size={14}/>
                                 </button>
                               ) : (
                                 <button

@@ -16,201 +16,563 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const requestData = await req.json()
-    const userId = requestData.user_id
-    const oponenteId = requestData.oponente_id
+    const { user_id, oponente_id } = await req.json()
 
-    // 1️⃣ Buscar jogadores
-    const { data: user, error: userError } = await supabase
+    // Busca dados dos jogadores
+    const { data: user } = await supabase
       .from('users')
-      .select('id, nivel, base_hp, base_attack')
-      .eq('id', userId)
+      .select('id, nome, nivel, base_hp, base_attack')
+      .eq('id', user_id)
       .single()
 
-    const { data: oponente, error: oponenteError } = await supabase
+    const { data: oponente } = await supabase
       .from('users')
-      .select('id, nivel, base_hp, base_attack')
-      .eq('id', oponenteId)
+      .select('id, nome, nivel, base_hp, base_attack')
+      .eq('id', oponente_id)
       .single()
 
-    if (!user || !oponente) {
-      throw new Error('Jogador não encontrado')
-    }
+    if (!user || !oponente) throw new Error('Jogador não encontrado')
 
-    // Calcular stats 
-    const calcularStat = (base: number, nivel: number) => {
-      return Math.floor(base * (1 + nivel * 0.2))
-    }
+    // Calcula stats baseado no nível (base * (1 + nivel * 0.2))
+    const calcularStat = (base: number, nivel: number) =>
+      Math.floor(base * (1 + nivel * 0.2))
 
-    // Buscar skills do USER
-    const { data: userSkills, error: userSkillsError } = await supabase
+    // Busca skills dos jogadores (slots 1-6)
+    const { data: userSkills } = await supabase
       .from('user_skills')
-      .select('slot, skills(id, name, cooldown)')
-      .eq('user_id', userId)
+      .select('slot, skills(id, name, tipo, duracao, cooldown, alvo, efeito)')
+      .eq('user_id', user_id)
       .lte('slot', 6)
       .order('slot')
 
-    // Buscar skills do OPONENTE
-    const { data: opponentSkills, error: opponentSkillsError } = await supabase
+    const { data: opponentSkills } = await supabase
       .from('user_skills')
-      .select('slot, skills(id, name, cooldown)')
-      .eq('user_id', oponenteId)
+      .select('slot, skills(id, name, tipo, duracao, cooldown, alvo, efeito)')
+      .eq('user_id', oponente_id)
       .lte('slot', 6)
       .order('slot')
 
-    // Garantir arrays válidos
-    const userSkillsArray = userSkills || []
-    const opponentSkillsArray = opponentSkills || []
+    // Monta fila de skills com controle de cooldown
+    const montarFila = (skills: any[]) =>
+      (skills || []).map(s => ({
+        ...s.skills,
+        efeito: typeof s.skills.efeito === 'string'
+          ? JSON.parse(s.skills.efeito)
+          : s.skills.efeito,
+        last_used: -999, // Última vez que foi usada (permite usar no turno 1)
+      }))
 
-    // Array de slots priority
-    const userSkillQueue = userSkillsArray.map(us => us.skills.id)
-    const opponentSkillQueue = opponentSkillsArray.map(os => os.skills.id)
+    const userQueue = montarFila(userSkills)
+    const opponentQueue = montarFila(opponentSkills)
 
-    // Criar estado das skills
-    const userSkillState = userSkillsArray.map(us => ({
-      slot: us.slot,
-      id: us.skills.id,
-      name: us.skills.name,
-      cooldown: us.skills.cooldown,
-      last_used_turn: -999
-    }))
-
-    const opponentSkillState = opponentSkillsArray.map(os => ({
-      slot: os.slot,
-      id: os.skills.id,
-      name: os.skills.name,
-      cooldown: os.skills.cooldown,
-      last_used_turn: -999
-    }))
-
-    // Escolher skill da fila
-    let userFilaIndex = { value: 0 }
-    let opponentFilaIndex = { value: 0 }
-
-    const escolherSkillFila = (queue: number[], state: any[], turno: number, filaIndex: { value: number }) => {
+    // Escolhe próxima skill disponível (que não esteja em cooldown)
+    const escolherSkill = (queue: any[], turno: number, index: { value: number }) => {
       if (queue.length === 0) return null
-      
       const total = queue.length
+
+      // Percorre a fila circular buscando skill disponível
       for (let i = 0; i < total; i++) {
-        const idx = (filaIndex.value + i) % total
-        const skillId = queue[idx]
-        const skill = state.find(s => s.id === skillId)
-        if (!skill) continue
-        if (turno - skill.last_used_turn >= skill.cooldown) {
-          skill.last_used_turn = turno
-          filaIndex.value = (idx + 1) % total
+        const idx = (index.value + i) % total
+        const skill = queue[idx]
+        
+        // Verifica se cooldown passou (turno atual - último uso > cooldown)
+        if (turno - skill.last_used > skill.cooldown) {
+          skill.last_used = turno
+          index.value = (idx + 1) % total
           return skill
         }
       }
-      filaIndex.value = (filaIndex.value + 1) % total
+
+      // Se nenhuma skill disponível, retorna null (usa ataque básico)
+      index.value = (index.value + 1) % total
       return null
     }
 
-    // 2️⃣ Criar estado da batalha
-    const jogadorA = {
-      id: user.id,
-      hp: calcularStat(user.base_hp, user.nivel),
-      attack: calcularStat(user.base_attack, user.nivel),
-    }
+    // Cria objeto do jogador com stats e arrays de efeitos
+    const criarJogador = (u: any) => ({
+      id: u.id,
+      hp: calcularStat(u.base_hp, u.nivel),
+      maxHp: calcularStat(u.base_hp, u.nivel),
+      attack: calcularStat(u.base_attack, u.nivel),
+      baseAttack: calcularStat(u.base_attack, u.nivel),
+      buffs: [] as any[], // Efeitos positivos (armor, block, reflect)
+      debuffs: [] as any[], // Efeitos negativos (stun, armor_reduction, debuff_ataque)
+      dots: [] as any[], // Dano ao longo do tempo
+    })
 
-    const jogadorB = {
-      id: oponente.id,
-      hp: calcularStat(oponente.base_hp, oponente.nivel),
-      attack: calcularStat(oponente.base_attack, oponente.nivel),
-    }
+    const jogadorA = criarJogador(user)
+    const jogadorB = criarJogador(oponente)
 
     const logTurnos: any[] = []
-    
-    // Dados iniciais dos jogadores
+
+    // Log inicial da batalha
     logTurnos.push({
       inicio: {
         user: {
-          nivel: user.nivel,
-          attack: jogadorA.attack,
+          nome: user.nome,
           hp: jogadorA.hp,
+          attack: jogadorA.attack,
+          nivel: user.nivel,
         },
         oponente: {
-          nivel: oponente.nivel,
-          attack: jogadorB.attack,
+          nome: oponente.nome,
           hp: jogadorB.hp,
+          attack: jogadorB.attack,
+          nivel: oponente.nivel,
         },
       },
     })
-    
+
+    // ============================================================
+    // FUNÇÃO: CAUSAR DANO
+    // ============================================================
+    // Calcula e aplica dano considerando: armor_reduction, armor, block, reflect
+    const causarDano = (
+      atacante: any,
+      defensor: any,
+      danoPercent: number,
+      ignoraDefesa = false,
+    ) => {
+      let dano = Math.floor((atacante.attack * danoPercent) / 100)
+
+      // ARMOR REDUCTION (permanente) - Aumenta dano recebido
+      // Exemplo: Projeção Maldita (+10%), Insanidade Explosiva (+10%)
+      // Se tiver 2x +10%, multiplica: 1.1 * 1.1 = 1.21 (+21% total)
+      const armorReductions = defensor.debuffs.filter(d => d.tipo === 'armor_reduction')
+      if (armorReductions.length > 0) {
+        let multiplicador = 1
+        armorReductions.forEach(ar => {
+          multiplicador *= (1 + ar.valor / 100)
+        })
+        dano = Math.floor(dano * multiplicador)
+      }
+
+      // ARMOR (Escudo Arcano) - Reduz dano em 10%
+      // Removido após usar (dura 1 turno ou até ser atingido)
+      if (!ignoraDefesa) {
+        const armorIdx = defensor.buffs.findIndex(b => b.tipo === 'armor')
+        if (armorIdx !== -1) {
+          const armor = defensor.buffs[armorIdx]
+          const reducao = Math.floor((dano * armor.valor) / 100)
+          dano -= reducao
+          defensor.buffs.splice(armorIdx, 1) // Remove armor após usar
+        }
+      }
+
+      // BLOCK (Esquiva Fantasma) - Bloqueia TODO dano
+      // Removido após bloquear 1 ataque
+      const blockIdx = defensor.buffs.findIndex(b => b.tipo === 'block')
+      if (blockIdx !== -1) {
+        defensor.buffs.splice(blockIdx, 1) // Remove block
+        return { dano: 0, bloqueado: true }
+      }
+
+      // REFLECT (Espelho Mágico) - Reflete 50% do dano
+      // Defensor recebe 50%, atacante recebe 50%
+      // Removido após refletir 1 ataque
+      const reflectIdx = defensor.buffs.findIndex(b => b.tipo === 'reflect')
+      if (reflectIdx !== -1) {
+        const reflect = defensor.buffs[reflectIdx]
+        const refletido = Math.floor((dano * reflect.valor) / 100)
+        defensor.hp -= (dano - refletido)
+        atacante.hp -= refletido
+        defensor.buffs.splice(reflectIdx, 1) // Remove reflect
+        return { dano: dano - refletido, refletido }
+      }
+
+      // Aplica dano normal
+      defensor.hp -= dano
+      return { dano }
+    }
+
+    // ============================================================
+    // FUNÇÃO: PROCESSAR DOTs (INÍCIO DO TURNO)
+    // ============================================================
+    // DOTs causam dano automático no início de cada turno
+    // DOTs permanentes: Espectro Infernal, Chuva Meteórica, Maldição Necro
+    // DOTs temporários: Chuva Astral (3 turnos)
+    const processarDOTs = (alvo: any) => {
+      const logs: any[] = []
+
+      alvo.dots = alvo.dots.filter((dot: any) => {
+        // Decrementa duração (apenas para DOTs temporários)
+        if (dot.turnosRestantes !== undefined) {
+          dot.turnosRestantes--
+          if (dot.turnosRestantes < 0) return false // Remove DOT expirado
+        }
+
+        // Calcula dano base do DOT
+        let dano = Math.floor((dot.ataqueBase * dot.dano) / 100)
+
+        // Aplica ARMOR REDUCTION ao dano do DOT
+        const armorReductions = alvo.debuffs.filter(d => d.tipo === 'armor_reduction')
+        if (armorReductions.length > 0) {
+          let multiplicador = 1
+          armorReductions.forEach(ar => {
+            multiplicador *= (1 + ar.valor / 100)
+          })
+          dano = Math.floor(dano * multiplicador)
+        }
+
+        // ARMOR do alvo - Reduz dano do DOT PERMANENTE
+        const armor = alvo.buffs.find(b => b.tipo === 'armor')
+        if (armor) {
+          const reducao = Math.floor((dano * armor.valor) / 100)
+          dano -= reducao
+          // NÃO remove - permanente
+        }
+
+        // BLOCK bloqueia DOT
+        const blockIdx = alvo.buffs.findIndex(b => b.tipo === 'block')
+        if (blockIdx !== -1) {
+          alvo.buffs.splice(blockIdx, 1) // Remove block
+          logs.push({ nome: dot.nome, dano: 0, bloqueado: true })
+          return dot.turnosRestantes === undefined || dot.turnosRestantes >= 0
+        }
+
+        // REFLECT reflete DOT
+        const reflectIdx = alvo.buffs.findIndex(b => b.tipo === 'reflect')
+        if (reflectIdx !== -1 && dano > 0) {
+          const reflect = alvo.buffs[reflectIdx]
+          const refletido = Math.floor((dano * reflect.valor) / 100)
+          const danoRecebido = dano - refletido
+          alvo.hp -= danoRecebido
+          alvo.buffs.splice(reflectIdx, 1) // Remove reflect
+          logs.push({ nome: dot.nome, dano: danoRecebido, refletido, dano_dot_refletido: refletido })
+          return dot.turnosRestantes === undefined || dot.turnosRestantes >= 0
+        }
+
+        // Aplica dano do DOT
+        alvo.hp -= dano
+        logs.push({ nome: dot.nome, dano })
+
+        // Mantém DOT se for permanente ou ainda tem turnos restantes
+        return dot.turnosRestantes === undefined || dot.turnosRestantes >= 0
+      })
+
+      return logs
+    }
+
+    // ============================================================
+    // FUNÇÃO: PROCESSAR DEBUFFS (DECREMENTA DURAÇÃO)
+    // ============================================================
+    const processarDebuffs = (jogador: any) => {
+      jogador.debuffs = jogador.debuffs.filter((debuff: any) => {
+        // STUN (Levitação) - Dura 1 turno
+        // Impede o jogador de agir no próximo turno
+        if (debuff.tipo === 'stun') {
+          debuff.turnos--
+          return debuff.turnos > 0
+        }
+
+        // ARMOR REDUCTION (Projeção Maldita, Insanidade Explosiva)
+        // Sempre permanente - nunca remove
+        if (debuff.tipo === 'armor_reduction') {
+          return true
+        }
+
+        // DEBUFF ATAQUE (Impacto Amaldiçoado)
+        // Permanente - nunca remove
+        if (debuff.tipo === 'debuff_ataque_permanente') {
+          return true
+        }
+
+        return true
+      })
+    }
+
+    // ============================================================
+    // FUNÇÃO: APLICAR SKILL
+    // ============================================================
+    const aplicarSkill = (atacante: any, defensor: any, skill: any) => {
+      const efeito = skill.efeito
+      const log: any = { nome: skill.name, skillId: skill.id, tipo: skill.tipo }
+
+      // ============================================================
+      // TIPO: DANO
+      // ============================================================
+      // Skills: Torrente Perfurante, Julgamento Celestial, Aero Impacto,
+      //         Golpe Sagaz, Impacto Amaldiçoado, Execução, Insanidade Explosiva
+      if (skill.tipo === 'dano') {
+        let danoPercent = efeito.dano
+
+        // EXECUÇÃO (skill 18) - Dano condicional
+        // 150% normal, 300% (150% + 150%) se HP alvo < 30%
+        if (efeito.condicional) {
+          const hpPct = (defensor.hp / defensor.maxHp) * 100
+          if (hpPct < efeito.condicional.vida_abaixo) {
+            // Se condição atender, usa dano total direto (não soma)
+            danoPercent = efeito.dano + efeito.condicional.dano_extra
+            log.execucao = true
+          }
+        }
+
+        // Aplica dano (agora calcula buffs/debuffs sobre o danoPercent final)
+        Object.assign(
+          log,
+          causarDano(atacante, defensor, danoPercent, efeito.ignora_defesa === true)
+        )
+
+        // IMPACTO AMALDIÇOADO (skill 17) - Reduz ataque permanentemente
+        // Reduz 10% do ataque base do oponente (só aplica 1x)
+        if (efeito.debuff_ataque) {
+          const jatem = defensor.debuffs.find(d => d.tipo === 'debuff_ataque_permanente')
+          if (!jatem) {
+            const reducao = Math.floor((defensor.baseAttack * Math.abs(efeito.debuff_ataque.ataque)) / 100)
+            defensor.attack -= reducao
+            defensor.debuffs.push({ tipo: 'debuff_ataque_permanente' })
+            log.debuff_ataque = `-${Math.abs(efeito.debuff_ataque.ataque)}%`
+          }
+        }
+
+        // INSANIDADE EXPLOSIVA (skill 21) - Self debuff permanente
+        // Causa 300% dano mas aumenta dano recebido em +10% permanentemente
+        if (efeito.armor_reduction) {
+          const jatem = atacante.debuffs.find(d => d.tipo === 'armor_reduction' && d.self)
+          if (!jatem) {
+            atacante.debuffs.push({
+              tipo: 'armor_reduction',
+              valor: efeito.armor_reduction,
+              self: true // Flag para identificar que é self-debuff
+            })
+            log.self_debuff = `+${efeito.armor_reduction}% dano recebido permanente`
+          }
+        }
+      }
+
+      // ============================================================
+      // TIPO: DOT (Damage Over Time)
+      // ============================================================
+      // Skills permanentes: Espectro Infernal (40%), Chuva Meteórica (40%), Maldição Necro (40%)
+      // Skills temporárias: Chuva Astral (70% por 3 turnos)
+      if (skill.tipo === 'dot') {
+        // Verifica se DOT já existe (não acumula o mesmo DOT)
+        const existe = defensor.dots.find((d: any) => d.id === skill.id)
+        if (!existe) {
+          const dotObj: any = {
+            id: skill.id,
+            nome: skill.name,
+            dano: efeito.dano,
+            ataqueBase: atacante.attack, // Snapshotta ataque atual
+          }
+
+          // Chuva Astral (skill 4) - DOT temporário (3 turnos)
+          // duracao < 99 indica DOT temporário
+          if (skill.duracao < 99) {
+            dotObj.turnosRestantes = skill.duracao
+          }
+          // Demais DOTs são permanentes (duram até fim da batalha)
+
+          defensor.dots.push(dotObj)
+        }
+
+        // DOT causa dano imediato no turno que é aplicado
+        const imediato = causarDano(atacante, defensor, efeito.dano)
+        log.dano_inicial = imediato.dano
+        if (imediato.bloqueado) log.bloqueado = true
+        if (imediato.refletido) log.refletido = imediato.refletido
+      }
+
+      // ============================================================
+      // TIPO: BUFF
+      // ============================================================
+      // Skills: Escudo Arcano, Cura Vitalizadora, Esquiva Fantasma,
+      //         Espelho Mágico, Foco
+      if (skill.tipo === 'buff') {
+        const alvo = skill.alvo === 'self' ? atacante : defensor
+
+        // CURA VITALIZADORA (skill 6) - Cura 10% HP
+        if (efeito.cura) {
+          const cura = Math.floor((alvo.maxHp * efeito.cura) / 100)
+          alvo.hp = Math.min(alvo.hp + cura, alvo.maxHp)
+          log.cura = cura
+        }
+
+        // ESQUIVA FANTASMA (skill 8) - Bloqueia próximo ataque
+        // Dura até ser atingido ou fim do próximo turno
+        if (efeito.block) {
+          alvo.buffs.push({ tipo: 'block' })
+        }
+
+        // ESPELHO MÁGICO (skill 10) - Reflete 50% do próximo ataque
+        // Dura até refletir 1 ataque ou fim do próximo turno
+        if (efeito.reflect) {
+          alvo.buffs.push({ tipo: 'reflect', valor: efeito.reflect })
+        }
+
+        // ESCUDO ARCANO (skill 5) - Reduz 10% de dano PERMANENTE
+        // Funciona igual ao Foco - buff permanente que dura toda batalha
+        if (efeito.armor) {
+          // Verifica se já tem (não acumula)
+          const jatem = alvo.buffs.find(b => b.tipo === 'armor')
+          if (!jatem) {
+            alvo.buffs.push({
+              tipo: 'armor',
+              valor: efeito.armor,
+            })
+          }
+        }
+
+        // FOCO (skill 14) - Buff permanente de ataque
+        // Aumenta ataque em 15% permanentemente
+        if (efeito.buff_permanente) {
+          const bonus = Math.floor((alvo.baseAttack * efeito.buff_permanente.ataque) / 100)
+          alvo.attack += bonus
+          alvo.baseAttack += bonus // Atualiza base para futuros cálculos
+          log.buff_permanente = `+${efeito.buff_permanente.ataque}%`
+        }
+      }
+
+      // ============================================================
+      // TIPO: DEBUFF
+      // ============================================================
+      // Skills: Levitação, Projeção Maldita
+      if (skill.tipo === 'debuff') {
+        // LEVITAÇÃO (skill 11) - Stun por 1 turno
+        // Oponente perde o próximo turno
+        if (efeito.atordoamento) {
+          defensor.debuffs.push({ tipo: 'stun', turnos: 1 })
+          log.stun = true
+        }
+
+        // PROJEÇÃO MALDITA (skill 20) - Armor reduction permanente
+        // Aumenta dano recebido em +10% permanentemente
+        if (efeito.armor_reduction) {
+          defensor.debuffs.push({
+            tipo: 'armor_reduction',
+            valor: efeito.armor_reduction,
+          })
+          log.armor_reduction = `+${efeito.armor_reduction}% dano permanente`
+        }
+      }
+
+      return log
+    }
+
+    // ============================================================
+    // FUNÇÃO: ATAQUE BÁSICO
+    // ============================================================
+    // Usado quando nenhuma skill está disponível (todas em cooldown)
+    // Causa 100% do ataque atual
+    const ataqueBasico = (atacante: any, defensor: any) => {
+      return { tipo: 'basic', ...causarDano(atacante, defensor, 100) }
+    }
+
+    // ============================================================
+    // LOOP DA BATALHA
+    // ============================================================
     let turno = 1
-    const MAX_TURNOS = 15
+    const MAX_TURNOS = 50
+    let userIndex = { value: 0 } // Índice circular para skills do user
+    let opponentIndex = { value: 0 } // Índice circular para skills do oponente
 
-    // 3️⃣ Loop da batalha
-    while (turno <= MAX_TURNOS) {
-      const turnoLog: any = { turn: turno, actions: [] }
+    while (jogadorA.hp > 0 && jogadorB.hp > 0 && turno <= MAX_TURNOS) {
+      const turnoLog: any = { turn: turno, actions: [], status_effects: [] }
 
-      // USER
-      const userSkill = escolherSkillFila(userSkillQueue, userSkillState, turno, userFilaIndex)
-      if (userSkill) {
-        turnoLog.actions.push({
-          actor: 'user',
-          type: 'skill',
-          id: userSkill.id,
-          name: userSkill.name
-        })
-      } else {
-        turnoLog.actions.push({
-          actor: 'user',
-          type: 'basic',
-          id: 0,
-          name: 'Basic Attack'
-        })
+      // ============================================================
+      // 1. PROCESSAR DOTs NO INÍCIO DO TURNO
+      // ============================================================
+      const dotsA = processarDOTs(jogadorA)
+      const dotsB = processarDOTs(jogadorB)
+      if (dotsA.length) turnoLog.status_effects.push({ alvo: 'user', dots: dotsA })
+      if (dotsB.length) turnoLog.status_effects.push({ alvo: 'opponent', dots: dotsB })
+
+      // ============================================================
+      // 2. PROCESSAR DEBUFFS (DECREMENTAR DURAÇÃO)
+      // ============================================================
+      processarDebuffs(jogadorA)
+      processarDebuffs(jogadorB)
+
+      // Verifica se alguém morreu pelos DOTs
+      if (jogadorA.hp <= 0 || jogadorB.hp <= 0) {
+        turnoLog.hpUser = jogadorA.hp
+        turnoLog.hpOponente = jogadorB.hp
+        logTurnos.push(turnoLog)
+        break
       }
 
-      // OPONENTE
-      const opponentSkill = escolherSkillFila(opponentSkillQueue, opponentSkillState, turno, opponentFilaIndex)
-      if (opponentSkill) {
-        turnoLog.actions.push({
-          actor: 'opponent',
-          type: 'skill',
-          id: opponentSkill.id,
-          name: opponentSkill.name
-        })
+      // ============================================================
+      // 3. USER ATACA
+      // ============================================================
+      // Verifica se está stunado (Levitação)
+      const stunAIdx = jogadorA.debuffs.findIndex(d => d.tipo === 'stun')
+      if (stunAIdx !== -1) {
+        turnoLog.actions.push({ actor: 'user', tipo: 'stunned' })
+        jogadorA.debuffs.splice(stunAIdx, 1)
+        // NÃO avança índice de skill - usa mesma skill no próximo turno
       } else {
-        turnoLog.actions.push({
-          actor: 'opponent',
-          type: 'basic',
-          id: 0,
-          name: 'Basic Attack'
-        })
+        // Escolhe skill ou ataque básico
+        const skill = escolherSkill(userQueue, turno, userIndex)
+        const res = skill ? aplicarSkill(jogadorA, jogadorB, skill) : ataqueBasico(jogadorA, jogadorB)
+        turnoLog.actions.push({ actor: 'user', ...res, hp_restante: jogadorB.hp })
       }
 
+      // Remove apenas buffs temporários (Block, Reflect)
+      // Armor é permanente
+      jogadorB.buffs = jogadorB.buffs.filter(b => 
+        b.tipo !== 'block' && b.tipo !== 'reflect'
+      )
+
+      if (jogadorB.hp <= 0) {
+        turnoLog.hpUser = jogadorA.hp
+        turnoLog.hpOponente = jogadorB.hp
+        logTurnos.push(turnoLog)
+        break
+      }
+
+      // ============================================================
+      // 4. OPONENTE ATACA
+      // ============================================================
+      const stunBIdx = jogadorB.debuffs.findIndex(d => d.tipo === 'stun')
+      if (stunBIdx !== -1) {
+        turnoLog.actions.push({ actor: 'opponent', tipo: 'stunned' })
+        jogadorB.debuffs.splice(stunBIdx, 1)
+        // NÃO avança índice de skill
+      } else {
+        const skill = escolherSkill(opponentQueue, turno, opponentIndex)
+        const res = skill ? aplicarSkill(jogadorB, jogadorA, skill) : ataqueBasico(jogadorB, jogadorA)
+        turnoLog.actions.push({ actor: 'opponent', ...res, hp_restante: jogadorA.hp })
+      }
+
+      // Remove apenas buffs temporários
+      jogadorA.buffs = jogadorA.buffs.filter(b => 
+        b.tipo !== 'block' && b.tipo !== 'reflect'
+      )
+
+      turnoLog.hpUser = jogadorA.hp
+      turnoLog.hpOponente = jogadorB.hp
       logTurnos.push(turnoLog)
+
+      if (jogadorA.hp <= 0) break
       turno++
     }
 
-    // 4️⃣ Definir vencedor
+    // ============================================================
+    // FINALIZAÇÃO
+    // ============================================================
     const vencedor_id = jogadorA.hp > 0 ? jogadorA.id : jogadorB.id
 
-    // 5️⃣ Salvar batalha
-    const { error } = await supabase
-      .from('batalhas')
-      .insert({
-        user_id: userId,
-        oponente_id: oponenteId,
-        vencedor_id,
-        log_turnos: logTurnos,
-      })
-
-    if (error) throw error
+    // Salva batalha no banco
+    await supabase.from('batalhas').insert({
+      user_id,
+      oponente_id,
+      vencedor_id,
+      log_turnos: logTurnos,
+    })
 
     return new Response(
       JSON.stringify({
         vencedor_id,
         log_turnos: logTurnos,
+        turnos_totais: turno - 1,
+        hp_final: { user: jogadorA.hp, oponente: jogadorB.hp },
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
-
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 400, headers: corsHeaders },
     )
   }
 })

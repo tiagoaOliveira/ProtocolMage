@@ -88,6 +88,19 @@
     color: white;
 }
 
+.item-card-header {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.item-card-image {
+    width: 70px;
+    height: 70px;
+    object-fit: cover;
+    margin-bottom: 8px;
+}
+
 .item-card-title {
     margin: 0 0 8px 0;
     color: #fff;
@@ -95,8 +108,7 @@
 }
 
 .item-card-seller,
-.item-card-quantity,
-.item-card-status {
+.item-card-quantity{
     font-size: 14px;
     opacity: 0.8;
     margin: 4px 0;
@@ -145,6 +157,14 @@
     height: 100vh;
     color: #fff;
     font-size: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .itens-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
 }
 
 @media (max-width: 380px) {

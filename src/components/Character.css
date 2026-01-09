@@ -259,7 +259,6 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.24rem 0.75rem;
-  border: none;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
@@ -282,6 +281,8 @@
 .btn-cancel {
   color: white;
   background: rgba(255, 0, 0, 0.5);
+  border: 1px solid #f44336;
+  padding: 0.5rem;
 }
 
 .build-empty {
@@ -357,9 +358,6 @@
   padding: 0.5rem;
 }
 
-.btn-edit-build:hover {
-  background: rgba(255, 193, 7, 0.3);
-}
 
 .btn-delete-build {
   background: rgba(244, 67, 54, 0.2);
@@ -520,9 +518,5 @@
   .current-build-slots,
   .temp-build-slots {
     grid-template-columns: repeat(3, 1fr);
-  }
-
-  .build-item-actions {
-    flex-wrap: wrap;
   }
 }

@@ -168,9 +168,18 @@ const Mercado = () => {
                 displayListings.map((listing) => (
                   <div key={listing.id} className="item-card">
                     <div className="item-card-info">
+                      <div className='item-card-header'>
+                        {listing.item_details?.image && (
+                        <img
+                          src={listing.item_details.image}
+                          alt={listing.item_details?.name || listing.item_details?.nome}
+                          className="item-card-image"
+                        />
+                      )}
                       <h3 className="item-card-title">
                         {listing.item_details?.name || listing.item_details?.nome || `Item ID: ${listing.item_id}`}
                       </h3>
+                      </div>
                       {selectedFilter !== 'my_listings' && (
                         <p className="item-card-seller">
                           Vendedor: {listing.seller?.nome}
@@ -179,11 +188,7 @@ const Mercado = () => {
                       <p className="item-card-quantity">
                         Quantidade: {listing.quantidade}
                       </p>
-                      {selectedFilter === 'my_listings' && (
-                        <p className="item-card-status">
-                          Status: {listing.status}
-                        </p>
-                      )}
+
                     </div>
 
                     <div className="item-card-compra">
