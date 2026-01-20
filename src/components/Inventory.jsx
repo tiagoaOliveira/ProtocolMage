@@ -151,11 +151,17 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
 
                           <div className="inventory-item-info">
                             <h3>{userSkill.skill.name}</h3>
-                            <p className="inventory-item-desc">
+                            <div className="inventory-item-desc">
                               {userSkill.skill.descricao || 'Sem descrição'}
-                            </p>
-                            <div className="inventory-item-stats">
-                              <span className="item-quantity">x{userSkill.quantidade}</span>
+                              <div className="inventory-item-stats">
+                                <span className="item-quantity">x{userSkill.quantidade}</span>
+                                {userSkill.skill.cooldown && (
+                                <span style={{ display: 'block', marginTop: '4px', color: '#f09124', fontWeight: 'bold' }}>
+                                  Recarga:{userSkill.skill.cooldown}
+                                </span>
+                              )}
+                              </div>
+                              
                             </div>
                           </div>
                         </div>

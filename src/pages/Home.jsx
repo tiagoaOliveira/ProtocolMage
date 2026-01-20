@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserById, generateLoot, getEquippedSkills } from '../services/service';
+import { getUserById, getEquippedSkills, generateDailyLoot, checkDailyLootStatus } from '../services/service';
 import Header from '../components/Header';
 import Nav from '../components/Nav';
 import CharacterModal from '../components/Character';
 import InventoryModal from '../components/Inventory';
-import { Backpack, Sparkles, Star, Percent } from 'lucide-react';
+import Toast, { useToast } from '../components/Toast';
+import { Backpack, Sparkles, Star, Clock } from 'lucide-react';
 import './Home.css';
 import mageperfil from '../assets/mage-perfil.png'
 import mage from '../assets/mage.png'
@@ -21,6 +22,58 @@ const Home = () => {
   const [fighting, setFighting] = useState(false);
   const [lootNotification, setLootNotification] = useState(null);
   const [equippedSkills, setEquippedSkills] = useState([]);
+  const [lootStatus, setLootStatus] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState('');
+  const { toasts, showToast, removeToast } = useToast();
+
+  // Verificar status do loot ao carregar
+  useEffect(() => {
+    const fetchLootStatus = async () => {
+      if (!user) return;
+
+      try {
+        const status = await checkDailyLootStatus(user.id);
+        setLootStatus(status);
+      } catch (error) {
+        console.error('Erro ao verificar status do loot:', error);
+      }
+    };
+
+    fetchLootStatus();
+    const interval = setInterval(fetchLootStatus, 60000); // Atualizar a cada 1 minuto
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Calcular tempo restante
+  useEffect(() => {
+    if (!lootStatus?.next_available_at) {
+      setTimeRemaining('');
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = new Date();
+      const nextAvailable = new Date(lootStatus.next_available_at);
+      const diff = nextAvailable - now;
+
+      if (diff <= 0) {
+        setTimeRemaining('DISPONÍVEL');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setTimeRemaining(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [lootStatus?.next_available_at]);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -44,27 +97,36 @@ const Home = () => {
   }, [user]);
 
   const handleFight = async () => {
-    if (fighting) return;
+    if (fighting || !lootStatus?.can_claim) return;
 
     setFighting(true);
 
     setTimeout(async () => {
       try {
-        const loot = await generateLoot(user.id);
+        const loot = await generateDailyLoot(user.id);
 
         const updatedData = await getUserById(user.id);
         setUserData(updatedData);
 
-        setLootNotification(loot.items); // abre o modal
+        // Atualizar status do loot
+        const newStatus = await checkDailyLootStatus(user.id);
+        setLootStatus(newStatus);
+
+        setLootNotification(loot.items);
+        showToast('Loot coletado com sucesso!', 'success');
       } catch (error) {
         console.error('Erro ao gerar loot:', error);
-        alert('Erro ao gerar loot');
+
+        if (error.message?.includes('já coletado')) {
+          showToast('Você já pegou seu loot diário!', 'warning');
+        } else {
+          showToast('Erro ao gerar loot', 'error');
+        }
       } finally {
         setFighting(false);
       }
     }, 100);
   };
-
 
   const handleUserUpdate = async () => {
     try {
@@ -120,10 +182,34 @@ const Home = () => {
     return Object.values(grouped);
   };
 
+  const getButtonContent = () => {
+    if (fighting) {
+      return (
+        <>
+          <Sparkles className="spin-icon" size={24} />
+          Lutando...
+        </>
+      );
+    }
+
+    if (lootStatus?.can_claim) {
+      return 'INICIAR FARM';
+    }
+
+    return (
+      <>
+        <div className='fight-button-cd'>
+          <Clock size={20} />
+          {timeRemaining || 'Carregando...'}
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="home-container">
       <Header userData={userData} onLogout={handleLogout} />
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       <main className="home-content">
         <div className='fight'>
@@ -137,16 +223,9 @@ const Home = () => {
           <button
             className='fight-button'
             onClick={handleFight}
-            disabled={fighting}
+            disabled={fighting || !lootStatus?.can_claim}
           >
-            {fighting ? (
-              <>
-                <Sparkles className="spin-icon" size={24} />
-                Lutando...
-              </>
-            ) : (
-              'INICIAR FARM'
-            )}
+            {getButtonContent()}
           </button>
 
           <button
@@ -181,9 +260,7 @@ const Home = () => {
                     )}
 
                     <h3 className="loot-item-name">{item.item_name}</h3>
-
                   </div>
-
                 ))}
               </div>
 

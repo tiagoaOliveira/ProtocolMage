@@ -1,11 +1,11 @@
 .nav {
     display: flex;
-    padding: 0.25rem 1rem;
+    padding: 0.25rem 1rem 0 1rem;
 }
 
 .nav3 {
     background: linear-gradient(to right, rgb(134, 149, 194), rgb(53, 89, 181));
-    padding: 0.5rem 1rem;
+    padding: 0.25rem 0.7rem;
     color: white;
     font-weight: 500;
     font-size: 1rem;

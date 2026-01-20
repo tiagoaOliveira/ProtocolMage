@@ -52,6 +52,9 @@ Deno.serve(async (req) => {
       .lte('slot', 6)
       .order('slot')
 
+    console.log('userSkills raw:', userSkills)
+    console.log('opponentSkills raw:', opponentSkills)
+
     // Monta fila de skills com controle de cooldown
     const montarFila = (skills: any[]) =>
       (skills || []).map(s => ({
@@ -60,10 +63,12 @@ Deno.serve(async (req) => {
           ? JSON.parse(s.skills.efeito)
           : s.skills.efeito,
         last_used: -999, // Última vez que foi usada (permite usar no turno 1)
+        uso_unico: s.skills.id === 20, // Projeção Maldita (id 20) só pode ser usada 1x
+        ja_usada: false,
       }))
 
-    const userQueue = montarFila(userSkills)
-    const opponentQueue = montarFila(opponentSkills)
+    const userQueue = montarFila(userSkills || [])
+    const opponentQueue = montarFila(opponentSkills || [])
 
     // Escolhe próxima skill disponível (que não esteja em cooldown)
     const escolherSkill = (queue: any[], turno: number, index: { value: number }) => {
@@ -75,8 +80,8 @@ Deno.serve(async (req) => {
         const idx = (index.value + i) % total
         const skill = queue[idx]
         
-        // Verifica se cooldown passou (turno atual - último uso > cooldown)
-        if (turno - skill.last_used > skill.cooldown) {
+        // Verifica se cooldown passou
+        if (turno - skill.last_used >= skill.cooldown) {
           skill.last_used = turno
           index.value = (idx + 1) % total
           return skill
@@ -257,14 +262,9 @@ Deno.serve(async (req) => {
     // FUNÇÃO: PROCESSAR DEBUFFS (DECREMENTA DURAÇÃO)
     // ============================================================
     const processarDebuffs = (jogador: any) => {
+      // Stun não é processado aqui - é removido quando usado
+      // Apenas mantém debuffs permanentes
       jogador.debuffs = jogador.debuffs.filter((debuff: any) => {
-        // STUN (Levitação) - Dura 1 turno
-        // Impede o jogador de agir no próximo turno
-        if (debuff.tipo === 'stun') {
-          debuff.turnos--
-          return debuff.turnos > 0
-        }
-
         // ARMOR REDUCTION (Projeção Maldita, Insanidade Explosiva)
         // Sempre permanente - nunca remove
         if (debuff.tipo === 'armor_reduction') {
@@ -274,6 +274,11 @@ Deno.serve(async (req) => {
         // DEBUFF ATAQUE (Impacto Amaldiçoado)
         // Permanente - nunca remove
         if (debuff.tipo === 'debuff_ataque_permanente') {
+          return true
+        }
+
+        // STUN - Mantém até ser usado
+        if (debuff.tipo === 'stun') {
           return true
         }
 
@@ -356,10 +361,11 @@ Deno.serve(async (req) => {
             ataqueBase: atacante.attack, // Snapshotta ataque atual
           }
 
-          // Chuva Astral (skill 4) - DOT temporário (3 turnos)
+          // Chuva Astral (skill 4) - DOT temporário (3 turnos de DOT)
           // duracao < 99 indica DOT temporário
+          // +1 porque decrementa ANTES de aplicar dano
           if (skill.duracao < 99) {
-            dotObj.turnosRestantes = skill.duracao
+            dotObj.turnosRestantes = skill.duracao + 1
           }
           // Demais DOTs são permanentes (duram até fim da batalha)
 
@@ -431,18 +437,21 @@ Deno.serve(async (req) => {
         // LEVITAÇÃO (skill 11) - Stun por 1 turno
         // Oponente perde o próximo turno
         if (efeito.atordoamento) {
-          defensor.debuffs.push({ tipo: 'stun', turnos: 1 })
+          defensor.debuffs.push({ tipo: 'stun' })
           log.stun = true
         }
 
         // PROJEÇÃO MALDITA (skill 20) - Armor reduction permanente
-        // Aumenta dano recebido em +10% permanentemente
+        // Aumenta dano recebido em +10% permanentemente (só aplica 1x)
         if (efeito.armor_reduction) {
-          defensor.debuffs.push({
-            tipo: 'armor_reduction',
-            valor: efeito.armor_reduction,
-          })
-          log.armor_reduction = `+${efeito.armor_reduction}% dano permanente`
+          const jatem = defensor.debuffs.find(d => d.tipo === 'armor_reduction' && !d.self)
+          if (!jatem) {
+            defensor.debuffs.push({
+              tipo: 'armor_reduction',
+              valor: efeito.armor_reduction,
+            })
+            log.armor_reduction = `+${efeito.armor_reduction}% dano permanente`
+          }
         }
       }
 
@@ -498,7 +507,7 @@ Deno.serve(async (req) => {
       const stunAIdx = jogadorA.debuffs.findIndex(d => d.tipo === 'stun')
       if (stunAIdx !== -1) {
         turnoLog.actions.push({ actor: 'user', tipo: 'stunned' })
-        jogadorA.debuffs.splice(stunAIdx, 1)
+        jogadorA.debuffs.splice(stunAIdx, 1) // Remove stun após aplicar
         // NÃO avança índice de skill - usa mesma skill no próximo turno
       } else {
         // Escolhe skill ou ataque básico

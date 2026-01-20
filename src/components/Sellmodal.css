@@ -18,7 +18,7 @@
     box-sizing: border-box;
 }
 
-.modal-header {
+.modal-header-sell {
     display: flex;
     justify-content: space-between;
     align-items: center;

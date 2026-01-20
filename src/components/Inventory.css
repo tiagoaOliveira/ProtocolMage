@@ -153,14 +153,14 @@
 }
 
 .inventory-item-image {
-  width: 50%;
+  width: 40%;
   height: 150px;
   object-fit: contain;
 }
 
 .inventory-item-icon {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   align-items: center;
   height: 150px;
   border-radius: 10px;
@@ -184,8 +184,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  margin: 8px 0;
+  align-self: center;
+  margin: 6px 0;
 }
 
 .item-quantity {

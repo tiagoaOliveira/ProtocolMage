@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserById, iniciarBatalha, getRanking } from '../services/service';
+import { getUserById } from '../services/service'; // Mantido apenas o essencial do usuário
 import Header from '../components/Header';
 import Nav from '../components/Nav';
-import BattleLog from '../components/BattleLog';
 import './Torneio.css';
 import Toast, { useToast } from '../components/Toast';
 
@@ -12,30 +11,21 @@ const Torneio = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [userData, setUserData] = useState(null);
-  const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [batalhaAtiva, setBatalhaAtiva] = useState(null);
-  const [processando, setProcessando] = useState(false);
   const { toasts, showToast, removeToast } = useToast();
 
   useEffect(() => {
     const fetchData = async () => {
-      if (user) {
-        try {
-          const [data, rankingData] = await Promise.all([
-            getUserById(user.id),
-            getRanking(20)
-          ]);
-          setUserData(data);
-          setRanking(rankingData);
-        } catch (error) {
-          console.error('Erro ao buscar dados:', error);
-        } finally {
-          setLoading(false);
-        }
+      if (!user) return;
+      try {
+        const data = await getUserById(user.id);
+        setUserData(data);
+      } catch (error) {
+        console.error('Erro ao carregar usuário:', error);
+      } finally {
+        setLoading(false);
       }
     };
-
     fetchData();
   }, [user]);
 
@@ -48,29 +38,6 @@ const Torneio = () => {
     }
   };
 
-  const handleDesafiar = async (oponenteId) => {
-    if (oponenteId === user.id) {
-      showToast('Você não pode desafiar a si mesmo!');
-      return;
-    }
-
-    setProcessando(true);
-    try {
-      const resultado = await iniciarBatalha(user.id, oponenteId);
-      setBatalhaAtiva(resultado.batalha);
-    } catch (error) {
-      console.error('Erro ao iniciar batalha:', error);
-      showToast('Erro ao iniciar batalha. Tente novamente.');
-    } finally {
-      setProcessando(false);
-    }
-  };
-
-  const fecharBatalha = () => {
-    setBatalhaAtiva(null);
-    getRanking(20).then(setRanking);
-  };
-
   if (loading) {
     return (
       <div className="torneio-container">
@@ -79,61 +46,30 @@ const Torneio = () => {
     );
   }
 
-  const posicaoUsuario = ranking.findIndex(r => r.id === user.id) + 1;
-  const vitoriasUsuario = ranking.find(r => r.id === user.id)?.vitorias || 0;
-
   return (
     <div className="torneio-container">
       <Header userData={userData} onLogout={handleLogout} />
-
+      
       <main className="torneio-content">
-        <div className="ranking-section">
-          <h2 className="ranking-title">🏆 EM BREVE!!!</h2>
-          
-          {processando && (
-            <div className="processing-overlay">
-              <div className="spinner"></div>
-              <p>Iniciando batalha...</p>
+        <div className="torneio-title-wrapper">
+          <h1 className="torneio-title">🏆 Torneios</h1>
+        </div>
+        
+        <div className="torneios-grid">
+          <div className="torneio-card">
+            <div className="torneio-card-header">
+              <h2>Torneio Principal</h2>
+              <div className="torneio-pot">Em breve novas disputas!</div>
             </div>
-          )}
-
-          <div className="ranking-list">
-            {ranking.map((jogador, index) => (
-              <div 
-                key={jogador.id} 
-                className={`ranking-item ${jogador.id === user.id ? 'user-item' : ''}`}
-              >
-                <div className="ranking-position">
-                  {index === 0 && '🥇'}
-                  {index === 1 && '🥈'}
-                  {index === 2 && '🥉'}
-                  {index > 2 && `#${index + 1}`}
-                </div>
-                
-                <div className="ranking-info">
-                  <h3>{jogador.nome}</h3>
-                  <div className="ranking-details">
-                    <span>Nível {jogador.nivel}</span>
-                    <span>•</span>
-                    <span>{jogador.vitorias} vitórias</span>
-                  </div>
-                </div>
-
-                {jogador.id !== user.id && (
-                  <button 
-                    className="btn-desafiar"
-                    onClick={() => handleDesafiar(jogador.id)}
-                    disabled={processando}
-                  >
-                    ⚔️ Desafiar
-                  </button>
-                )}
-
-                {jogador.id === user.id && (
-                  <span className="user-badge">Você</span>
-                )}
-              </div>
-            ))}
+            
+            <div className="torneio-card-body">
+              <p style={{color: 'white', textAlign: 'center'}}>
+                As inscrições estão temporariamente fechadas.
+              </p>
+              <button className="btn-inscrever" disabled>
+                Indisponível
+              </button>
+            </div>
           </div>
         </div>
 
@@ -142,14 +78,6 @@ const Torneio = () => {
         </div>
       </main>
 
-      {batalhaAtiva && (
-        <BattleLog
-          logTurnos={batalhaAtiva.log_turnos}
-          nome={userData?.nome}
-          oponenteName={ranking.find(r => r.id === batalhaAtiva.oponente_id)?.nome}
-          onClose={fecharBatalha}
-        />
-      )}
       <Toast toasts={toasts} onRemove={removeToast} />
     </div>
   );

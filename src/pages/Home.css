@@ -50,6 +50,11 @@
     border-radius: 1rem;
 }
 
+.fight-button-cd{
+    display: flex;
+    gap: 0.75rem;
+}
+
 /* LOOT MODAL */
 .loot-modal-overlay {
     position: fixed;
@@ -204,10 +209,6 @@
 .loot-modal-confirm:hover {
     transform: scale(1.05);
     box-shadow: 0 5px 20px rgba(255, 215, 0, 0.5);
-}
-
-.nav-menu {
-    margin-top: 1rem;
 }
 
 @media (max-width: 380px) {

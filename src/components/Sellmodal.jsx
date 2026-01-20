@@ -23,7 +23,7 @@ export default function SellModal({ isOpen, onClose, item, itemType, onConfirm }
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-container" onClick={(e) => e.stopPropagation()}>
 
-        <div className="modal-header">
+        <div className="modal-header-sell">
           <h2 className="modal-title">
             <DollarSign size={24} color='green'/>
             Vender Item
@@ -62,7 +62,7 @@ export default function SellModal({ isOpen, onClose, item, itemType, onConfirm }
             min="0.01"
             value={preco}
             onChange={(e) => setPreco(e.target.value)}
-            placeholder="0.00"
+            placeholder="0.00 Taxa de 5% na venda."
             className="form-input"
           />
         </div>

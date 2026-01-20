@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import "./Character.css";
-import { X, Sword, Heart, Save, Upload, Edit2, Trash2, Plus } from "lucide-react";
+import { X, Sword, Heart, Save, Upload, Edit2, Trash2, Plus, Info } from "lucide-react";
 import { getUserSkills, getUserBuilds, saveCurrentBuild, updateBuild, deleteBuild, equipBuildBatch } from "../services/service";
 import Toast, { useToast } from './Toast';
 import ConfirmModal, { useConfirm } from './ConfirmModal';
@@ -22,6 +22,7 @@ export default function CharacterModal({
   const [editingBuild, setEditingBuild] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tempBuild, setTempBuild] = useState([]);
+  const [skillDetailModal, setSkillDetailModal] = useState({ open: false, skill: null });
   const { toasts, showToast, removeToast } = useToast();
   const { confirmState, showConfirm } = useConfirm();
 
@@ -202,6 +203,15 @@ export default function CharacterModal({
     }
   };
 
+  const openSkillDetail = (skill, e) => {
+    e.stopPropagation();
+    setSkillDetailModal({ open: true, skill: skill.skill });
+  };
+
+  const closeSkillDetail = () => {
+    setSkillDetailModal({ open: false, skill: null });
+  };
+
   if (!isOpen) return null;
 
   const nivel = userData?.nivel ?? 1;
@@ -227,7 +237,7 @@ export default function CharacterModal({
       <div className="character-modal" onClick={onClose}>
         <div className="character-modal-content" onClick={(e) => e.stopPropagation()}>
           <button className="character-modal-close" onClick={onClose}>
-            <X color="yellow" size={32} />
+            <X size={20} />
           </button>
 
           <div className="modal-infos">
@@ -300,7 +310,9 @@ export default function CharacterModal({
                         <div
                           key={index}
                           className={`current-build-slot ${skill ? 'equipped' : 'empty'} ${isLocked ? 'locked' : ''}`}
-                          title={isLocked ? `Bloqueado: Nível ${unlockLevel}` : (skill ? skill.skill.name : 'Vazio')}
+                          onClick={skill && !isLocked ? (e) => openSkillDetail(skill, e) : undefined}
+                          title={isLocked ? `Bloqueado: Nível ${unlockLevel}` : (skill ? 'Clique para ver detalhes' : 'Vazio')}
+                          style={{ cursor: skill && !isLocked ? 'pointer' : 'default' }}
                         >
                           {isLocked ? (
                             <div className="lock-container">
@@ -346,7 +358,7 @@ export default function CharacterModal({
                             <div className="build-item-header">
                               <span className="build-item-name">{build.nome}</span>
                               {build.is_active && <span className="build-active-badge">Ativa</span>}
-                              
+
                             </div>
                             <div className="build-item-actions">
                               <button
@@ -362,7 +374,7 @@ export default function CharacterModal({
                                   className="btn-cancel"
                                   title="Cancelar edição"
                                 >
-                                  <X size={14}/>
+                                  <X size={14} />
                                 </button>
                               ) : (
                                 <button
@@ -436,12 +448,16 @@ export default function CharacterModal({
                   <div className="build-skills-grid">
                     {availableSkills.map((userSkill) => (
                       <div key={userSkill.id} className="build-skill-item">
-                        <div className="skill-image-container">
+                        <div
+                          className="skill-image-container"
+                          onClick={(e) => openSkillDetail(userSkill, e)}
+                          title="Clique para ver detalhes">
                           {userSkill.skill.image ? (
                             <img src={userSkill.skill.image} alt={userSkill.skill.name} />
                           ) : (
                             <span className="skill-initial">{userSkill.skill.name.charAt(0)}</span>
                           )}
+
                         </div>
                         <button
                           className="btn-add-skill"
@@ -459,6 +475,33 @@ export default function CharacterModal({
           </div>
         </div>
       )}
+
+      {/* Modal de Detalhes da Skill */}
+      {skillDetailModal.open && skillDetailModal.skill && (
+        <div className="skill-detail-overlay" onClick={closeSkillDetail}>
+          <div className="skill-detail-container" onClick={(e) => e.stopPropagation()}>
+            <div className="skill-detail-header">
+              
+              <h3 className="skill-detail-name">{skillDetailModal.skill.name}</h3>
+            </div>
+
+            <div className="skill-detail-description-box">
+              <p className="skill-detail-description-text">
+                {skillDetailModal.skill.descricao || 'Sem descrição disponível'}
+              </p>
+            </div>
+
+            {skillDetailModal.skill.cooldown && (
+              <div className="skill-detail-cooldown-badge">
+                <span className="skill-detail-cooldown-text">
+                  ⏱️ Recarga: {skillDetailModal.skill.cooldown}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <Toast toasts={toasts} onRemove={removeToast} />
       <ConfirmModal {...confirmState} />
     </>

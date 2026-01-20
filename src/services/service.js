@@ -29,9 +29,9 @@ export const updateUserProfile = async (userId, updates) => {
 // ============================================
 // LOOT SYSTEM - SEGURO (executado no servidor)
 // ============================================
-export const generateLoot = async (userId) => {
+export const generateDailyLoot = async (userId) => {
   try {
-    const { data, error } = await supabase.rpc('generate_loot', {
+    const { data, error } = await supabase.rpc('generate_daily_loot', {
       p_user_id: userId
     });
 
@@ -43,6 +43,19 @@ export const generateLoot = async (userId) => {
   }
 };
 
+export const checkDailyLootStatus = async (userId) => {
+  try {
+    const { data, error } = await supabase.rpc('check_daily_loot_status', {
+      p_user_id: userId
+    });
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Erro ao verificar status do loot:', error);
+    throw error;
+  }
+};
 // ============================================
 // INVENTÁRIO - SKILLS
 // ============================================
@@ -541,7 +554,6 @@ export const getSkillsEquipadas = async (userId) => {
 export default {
   getUserById,
   updateUserProfile,
-  generateLoot,
   getUserSkills,
   getEquippedSkills,
   toggleSkillEquipped,
