@@ -6,8 +6,9 @@ import Header from '../components/Header';
 import Nav from '../components/Nav';
 import CharacterModal from '../components/Character';
 import InventoryModal from '../components/Inventory';
+import InfoModal from '../components/InfoModal'; // ADICIONAR ESTA LINHA
 import Toast, { useToast } from '../components/Toast';
-import { Backpack, Sparkles, Star, Clock } from 'lucide-react';
+import { Backpack, Sparkles, Star, Clock, ShieldQuestionMark } from 'lucide-react'; // ADICIONAR Info
 import './Home.css';
 import mageperfil from '../assets/mage-perfil.png'
 import mage from '../assets/mage.png'
@@ -19,6 +20,7 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [characterModalOpen, setCharacterModalOpen] = useState(false);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
+  const [infoModalOpen, setInfoModalOpen] = useState(false); // ADICIONAR ESTA LINHA
   const [fighting, setFighting] = useState(false);
   const [lootNotification, setLootNotification] = useState(null);
   const [equippedSkills, setEquippedSkills] = useState([]);
@@ -193,7 +195,7 @@ const Home = () => {
     }
 
     if (lootStatus?.can_claim) {
-      return 'INICIAR FARM';
+      return 'Pegar Itens';
     }
 
     return (
@@ -210,6 +212,15 @@ const Home = () => {
     <div className="home-container">
       <Header userData={userData} onLogout={handleLogout} />
       <Toast toasts={toasts} onRemove={removeToast} />
+
+      {/* ADICIONAR ESTE BOTÃO FLUTUANTE PARA ABRIR O MODAL DE INFO */}
+      <button 
+        className="info-floating-button"
+        onClick={() => setInfoModalOpen(true)}
+        title="Informações"
+      >
+        <ShieldQuestionMark size={36} color='#ff9800' />
+      </button>
 
       <main className="home-content">
         <div className='fight'>
@@ -294,6 +305,12 @@ const Home = () => {
           onClose={() => setInventoryModalOpen(false)}
           userId={user?.id}
           onUpdate={handleUserUpdate}
+        />
+
+        {/* ADICIONAR O INFOMODAL AQUI */}
+        <InfoModal 
+          isOpen={infoModalOpen} 
+          onClose={() => setInfoModalOpen(false)} 
         />
 
         <div className="nav-menu">

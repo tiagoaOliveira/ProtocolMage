@@ -1,0 +1,120 @@
+.historico-overlay-simples {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.historico-modal-simples {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid #ffd700;
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 500px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.historico-header-simples {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #ffd700;
+}
+
+.historico-header-simples h2 {
+  margin: 0;
+  color: #ffd700;
+  font-size: 1.3rem;
+}
+
+.historico-header-simples button {
+  background: #ef4444;
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.historico-header-simples button:hover {
+  background: #dc2626;
+}
+
+.historico-lista-simples {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  scrollbar-width: none;
+}
+
+.historico-item-simples {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.historico-item-simples:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.historico-item-simples.vitoria {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.historico-item-simples.derrota {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.historico-resultado {
+  font-size: 2rem;
+  min-width: 40px;
+  text-align: center;
+}
+
+.historico-detalhes {
+  flex: 1;
+}
+
+.historico-oponente-nome {
+  font-weight: bold;
+  color: white;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.historico-data {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .historico-modal-simples {
+    width: 95%;
+  }
+
+  .historico-header-simples h2 {
+    font-size: 1.1rem;
+  }
+}

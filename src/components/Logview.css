@@ -13,10 +13,9 @@
 
 .battle-log-container-test {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border: 2px solid #ffd700;
   border-radius: 16px;
-  padding: 1rem;
-  width: 40%;
+  padding: 1rem 0.5rem;
+  width: 38%;
   height: 90vh;
   color: white;
   display: flex;
@@ -24,12 +23,17 @@
   justify-content: space-between;
 }
 
+.battle-log-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 0;
+  scrollbar-width: none;
+}
+
 .battle-log-header-test {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #ffd700;
-  padding-bottom: 12px;
 }
 
 .battle-log-title {
@@ -56,10 +60,6 @@
 .battle-log-inicio-box {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  background: rgba(255, 215, 0, 0.1);
-  border: 1px solid #ffd700;
-  border-radius: 12px;
   padding: 1rem;
 
 }
@@ -109,16 +109,10 @@
   text-align: center;
 }
 
-.battle-log-turno-title {
-  color: #ffd700;
-  margin-top: 0;
-  margin-bottom: 8px;
-}
-
 .battle-log-hp-display {
   display: flex;
   justify-content: center;
-  gap: 32px;
+  gap: 16px;
   flex-wrap: wrap;
   font-size: 1.1rem;
 }
@@ -243,7 +237,6 @@
   padding: 10px 20px;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: bold;
   font-size: 1rem;
 }
 
@@ -269,12 +262,10 @@
   border: 2px solid #ffd700;
   border-radius: 12px;
   padding: 20px;
-  margin-top: 20px;
 }
 
 .battle-log-resultado-title {
   color: #ffd700;
-  margin: 0 0 12px 0;
   font-size: 2rem;
 }
 
@@ -290,6 +281,10 @@
 }
 
 @media (max-width: 768px) {
+  .battle-log-container-test {
+    width: 95%;
+  }
+
   .battle-log-combatants-grid {
     grid-template-columns: 1fr;
   }

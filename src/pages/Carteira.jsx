@@ -65,7 +65,7 @@ const Carteira = () => {
       <main className="carteira-content">
         <div className="carteira-card">
           <h2>💰 Carteira</h2>
-
+          <span className='carteira-warning'>Por favor, atente-se ao fato que o depósito e saque mínimo é de R$5,00. Pode levar algumas horas de processamento.</span>
           <div className="saldo">
             Saldo: <span>R$ {(userData?.saldo ?? 0).toFixed(2)}</span>
           </div>

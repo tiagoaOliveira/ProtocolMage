@@ -56,6 +56,100 @@ export const checkDailyLootStatus = async (userId) => {
     throw error;
   }
 };
+
+// ============================================
+// SISTEMA DE TORNEIOS (1v1)
+// ============================================
+
+// Inscrever no torneio
+export const inscreverTorneio = async (userId, tipoTorneioId) => {
+  const { data, error } = await supabase.rpc('inscrever_torneio', {
+    p_user_id: userId,
+    p_tipo_torneio_id: tipoTorneioId
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// Cancelar inscrição
+export const cancelarInscricaoTorneio = async (userId) => {
+  const { data, error } = await supabase.rpc('cancelar_inscricao_torneio', {
+    p_user_id: userId
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const processarTorneio = async (torneioId) => {
+  const { data, error } = await supabase.functions.invoke('processar-torneio', {
+    body: { torneio_id: torneioId }
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// Obter dados do torneio atual
+export const obterTorneioAtual = async (userId, incluirFinalizados = false) => {
+  const { data, error } = await supabase.rpc('obter_torneio_atual', {
+    p_user_id: userId,
+    p_incluir_finalizados: incluirFinalizados
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// Listar tipos de torneio disponíveis
+export const listarTiposTorneio = async () => {
+  const { data, error } = await supabase
+    .from('tipos_torneio')
+    .select('*')
+    .eq('ativo', true)
+    .order('taxa_inscricao');
+
+  if (error) throw error;
+  return data;
+};
+// Buscar histórico de batalhas (últimas 10)
+export const obterHistoricoBatalhas = async (userId) => {
+  const { data, error } = await supabase
+    .from('torneios')
+    .select(`
+      id,
+      status,
+      vencedor_id,
+      finalizado_em,
+      log,
+      created_at,
+      tipo_torneio:tipo_torneio_id (
+        nome,
+        premio_vencedor
+      ),
+      jogador1:jogador1_id (
+        id,
+        nome,
+        avatar,
+        nivel
+      ),
+      jogador2:jogador2_id (
+        id,
+        nome,
+        avatar,
+        nivel
+      )
+    `)
+    .or(`jogador1_id.eq.${userId},jogador2_id.eq.${userId}`)
+    .eq('status', 'finalizado')
+    .order('finalizado_em', { ascending: false })
+    .limit(10);
+
+  if (error) throw error;
+  return data;
+};
+
 // ============================================
 // INVENTÁRIO - SKILLS
 // ============================================

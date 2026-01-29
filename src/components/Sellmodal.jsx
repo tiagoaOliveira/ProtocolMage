@@ -62,7 +62,7 @@ export default function SellModal({ isOpen, onClose, item, itemType, onConfirm }
             min="0.01"
             value={preco}
             onChange={(e) => setPreco(e.target.value)}
-            placeholder="0.00 Taxa de 5% na venda."
+            placeholder="Taxa de 5% será aplicado na venda."
             className="form-input"
           />
         </div>

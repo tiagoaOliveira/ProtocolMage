@@ -37,7 +37,7 @@
     background: linear-gradient(to right, rgb(134, 149, 194), rgb(53, 89, 181));
     border-radius: 20px;
     padding: 3rem;
-    width: 360px;
+    width: 380px;
     box-shadow: 0 15px 50px rgba(0, 0, 0, 0.25);
     text-align: center;
     color: white;
@@ -46,12 +46,16 @@
 
 .carteira-card h2 {
     font-size: 2rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.carteira-warning {
+    padding-bottom: 1rem;
 }
 
 .saldo {
     font-size: 1.4rem;
-    margin-bottom: 2rem;
+    margin: 1rem 0;
 }
 
 .saldo span {

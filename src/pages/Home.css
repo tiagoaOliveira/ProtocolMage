@@ -1,14 +1,16 @@
 .home-container {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100dvh;
-    background-image: url('/deungoen-1.jpg');
+    background-image: url('/dungeon-1.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
 }
 
 .home-content {
+    position: relative;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -53,6 +55,19 @@
 .fight-button-cd{
     display: flex;
     gap: 0.75rem;
+}
+
+/* BOTÃO FLUTUANTE DE INFORMAÇÕES */
+.info-floating-button {
+    position: absolute;
+    top: 5rem;
+    right: 1rem;  
+    cursor: pointer;
+    z-index: 999;
+}
+
+.info-floating-button:hover {
+    transform: scale(1.2);
 }
 
 /* LOOT MODAL */
@@ -211,13 +226,22 @@
     box-shadow: 0 5px 20px rgba(255, 215, 0, 0.5);
 }
 
-@media (max-width: 380px) {
-    .fight {
-    gap: 1rem;
+@media (max-width: 768px) {
+    .info-floating-button {
+        top: 4rem;
+        right: 0.5rem;
+        width: 45px;
+        height: 45px;
+    }
 }
 
+@media (max-width: 380px) {
+    .fight {
+        gap: 1rem;
+    }
+
     .loot-modal-content {
-    padding: 1.5rem;
-}
+        padding: 1.5rem;
+    }
 
 }

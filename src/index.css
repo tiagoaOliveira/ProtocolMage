@@ -4,7 +4,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
 }
 
@@ -12,15 +13,34 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-family: system-ui, sans-serif;
-  background: black;
+  background: transparent;
+  max-width: 768px;
+  margin: 0 auto;
+
+  background-image:
+    linear-gradient(
+      rgba(0, 0, 0, 0.35),
+      rgba(0, 0, 0, 0.35)
+    ),
+    url('/wallpaper2.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
-img, picture, video, canvas, svg {
+img,
+picture,
+video,
+canvas,
+svg {
   display: block;
   max-width: 100%;
 }
 
-button, input, textarea, select {
+button,
+input,
+textarea,
+select {
   font: inherit;
   border: none;
   background: none;
@@ -35,8 +55,12 @@ ul {
   list-style: none;
 }
 
-body {
-  max-width: 768px;
-  margin: 0 auto;
-  font-family: system-ui, sans-serif;
+@media (min-width:769px) {
+  body {
+    mask-image: linear-gradient(to right,
+        transparent,
+        black 1%,
+        black 99%,
+        transparent);
+  }
 }

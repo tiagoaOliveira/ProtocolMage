@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import './logview.css';
+import './Logview.css';
 
-const BattleLog = ({
-  logTurnos = logTurnosMock,
+const Logview = ({
+  logTurnos = [],
+  userName = 'Você',
+  oponenteName = 'Oponente',
   onClose
 }) => {
   const [turnoAtual, setTurnoAtual] = useState(0);
@@ -19,8 +21,8 @@ const BattleLog = ({
   }
 
   const inicio = logTurnos[0]?.inicio;
-  const userLabel = inicio?.user?.nome || 'User';
-  const oponenteLabel = inicio?.oponente?.nome || 'Oponente';
+  const userLabel = userName;
+  const oponenteLabel = oponenteName;
 
   const turno = turnoAtual > 0 ? logTurnos[turnoAtual] : null;
   const totalTurnos = logTurnos.length - 1;
@@ -132,31 +134,6 @@ const BattleLog = ({
       </div>
     ));
   };
-  const getHpNoTurno = () => {
-  let hpUser = inicio.user.hp;
-  let hpOponente = inicio.oponente.hp;
-
-  for (let i = 1; i <= turnoAtual; i++) {
-    const t = logTurnos[i];
-    if (!t?.actions) continue;
-
-    t.actions.forEach(action => {
-      if (typeof action.hp_restante !== 'number') return;
-
-      if (action.actor === 'user') {
-        // user atacou → oponente perdeu HP
-        hpOponente = action.hp_restante;
-      } else if (action.actor === 'opponent') {
-        // oponente atacou → user perdeu HP
-        hpUser = action.hp_restante;
-      }
-    });
-  }
-
-  return { hpUser, hpOponente };
-};
-const { hpUser, hpOponente } = getHpNoTurno();
-
 
   return (
     <div className="battle-log-overlay-test" onClick={onClose}>
@@ -195,7 +172,6 @@ const { hpUser, hpOponente } = getHpNoTurno();
           {turno && turnoAtual > 0 && (
             <div className="battle-log-turno-box">
               <div className="battle-log-turno-header">
-                <h3 className="battle-log-turno-title">Turno {turno.turn}</h3>
                 <div className="battle-log-hp-display">
                   <span className="battle-log-hp-user">
                     {userLabel}: {turno.hpUser} HP
@@ -304,9 +280,7 @@ const { hpUser, hpOponente } = getHpNoTurno();
                 {getVencedor() === userLabel ? '🎉 VITÓRIA!' :
                   getVencedor() === oponenteLabel ? '💀 DERROTA' : '🤝 EMPATE'}
               </h2>
-              <p className="battle-log-resultado-text">
-                Vencedor: <strong>{getVencedor()}</strong>
-              </p>
+
             </div>
           )}
         </div>
@@ -318,9 +292,8 @@ const { hpUser, hpOponente } = getHpNoTurno();
             disabled={turnoAtual === 0}
             className="battle-log-nav-btn"
           >
-            ← Anterior
+            ← 
           </button>
-
           <span className="battle-log-nav-text">
             {turnoAtual === 0 ? 'Início' : `Turno ${turno?.turn || turnoAtual}`} / {totalTurnos} turnos
           </span>
@@ -330,7 +303,7 @@ const { hpUser, hpOponente } = getHpNoTurno();
             disabled={turnoAtual === totalTurnos}
             className="battle-log-nav-btn"
           >
-            Próximo →
+             →
           </button>
         </div>
       </div>
@@ -338,6 +311,4 @@ const { hpUser, hpOponente } = getHpNoTurno();
   );
 };
 
-const logTurnosMock = []
-
-export default BattleLog;
+export default Logview;

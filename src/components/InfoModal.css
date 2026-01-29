@@ -1,4 +1,5 @@
-.chances-modal-overlay {
+/* Modal Overlay */
+.info-modal-overlay {
   position: fixed;
   inset: 0;
   display: flex;
@@ -7,9 +8,11 @@
   z-index: 2000;
   padding: 0.5rem;
   backdrop-filter: blur(1px);
+  background: rgba(0, 0, 0, 0.6);
 }
 
-.chances-modal-content {
+/* Modal Content */
+.info-modal-content {
   position: relative;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   border: 2px solid rgba(240, 145, 36, 0.5);
@@ -20,28 +23,20 @@
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  scrollbar-width: none;
 }
 
-.chances-modal-close {
-  position: absolute;
-  top: 1.1rem;
-  right: 1rem;
-  color: #f09124;
-  cursor: pointer;
+/* Header */
+.info-modal-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(240, 145, 36, 0.3);
 }
 
-.chances-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.chances-header h2 {
+.info-modal-header h2 {
   font-size: 1.75rem;
   font-weight: bold;
   color: #f09124;
@@ -49,18 +44,97 @@
   text-shadow: 0 0 10px rgba(240, 145, 36, 0.5);
 }
 
-.chances-body {
+.info-modal-close {
+  background: none;
+  border: none;
+  color: #f09124;
+  cursor: pointer;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
 }
 
-/* Navegação */
+.info-modal-close:hover {
+  transform: scale(1.1);
+}
+
+/* Body */
+.info-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Seções */
+.info-section {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(240, 145, 36, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.info-section:hover {
+  border-color: rgba(240, 145, 36, 0.4);
+}
+
+.info-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.info-section-header:hover {
+  background: rgba(240, 145, 36, 0.1);
+  color: #f09124;
+}
+
+.info-section-header span {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-section-content {
+  padding: 1rem 1.5rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+  animation: slideDown 0.3s ease;
+}
+
+.info-section-content p {
+  margin: 0.5rem 0;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Navegação das Chances */
 .chances-navigation {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4rem;
-  padding-bottom: 0.5rem;
+  padding: 1rem 0;
+  margin-bottom: 1rem;
 }
 
 .btn-nav {
@@ -74,6 +148,12 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-nav:hover {
+  background: rgba(240, 145, 36, 0.3);
+  transform: scale(1.1);
 }
 
 .chances-level-display {
@@ -101,25 +181,26 @@
 .chances-list {
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .chance-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
   background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
   transition: all 0.3s;
 }
 
 .chance-item:hover {
   background: rgba(0, 0, 0, 0.4);
-  border-color: rgba(240, 145, 36, 0.3);
   transform: translateX(4px);
 }
 
 .chance-item-info {
-
   flex-shrink: 0;
   min-width: 200px;
 }
@@ -172,7 +253,7 @@
 }
 
 .chance-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: bold;
   color: #f09124;
   text-shadow: 0 0 10px rgba(240, 145, 36, 0.5);
@@ -182,7 +263,7 @@
 }
 
 .chance-symbol {
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: rgba(240, 145, 36, 0.8);
   font-weight: 600;
   margin-left: 0.15rem;
@@ -221,28 +302,46 @@
 
 /* Informações */
 .chances-info {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(240, 145, 36, 0.2);
-  border-radius: 12px;
-  padding: 1rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  text-align: center;
 }
 
 .chances-info p {
   margin: 0;
   color: rgba(255, 255, 255, 0.8);
   font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+}
+
+/* Versão */
+.info-version {
+  text-align: center;
+  padding: 1rem 0 0.5rem;
+  border-top: 1px solid rgba(240, 145, 36, 0.2);
+}
+
+.info-version p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 /* Responsividade */
 @media (max-width: 768px) {
-  .chances-modal-content {
+  .info-modal-content {
     padding: 1rem;
+  }
+
+  .info-modal-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .info-section-header {
+    font-size: 1rem;
+    padding: 0.875rem 1rem;
   }
 
   .chances-navigation {
@@ -269,17 +368,23 @@
 
   .chance-value {
     min-width: 60px;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
   }
 }
 
 @media (max-width: 480px) {
-  .chances-header h2 {
+  .info-modal-header h2 {
     font-size: 1.25rem;
   }
 
-  .chances-info {
+  .info-section-header {
+    font-size: 0.95rem;
     padding: 0.75rem 1rem;
+  }
+
+  .info-section-content {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
   }
 
   .chances-info p {
