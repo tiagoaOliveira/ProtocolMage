@@ -1,0 +1,2224 @@
+CREATE TABLE public.users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
+  nome TEXT NOT NULL,
+  avatar TEXT,
+  saldo DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  pontuacao INTEGER NOT NULL DEFAULT 0,
+  nivel INT NOT NULL DEFAULT 1,
+  xp BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+
+-- RLS
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users_select_all"
+ON users
+FOR SELECT
+TO public
+USING (true);
+
+CREATE POLICY "users_update_own"
+ON public.users
+FOR UPDATE
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
+
+-- FUNÇÃO PARA CRIAR USUÁRIO AUTOMATICAMENTE
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.users (id, email, nome)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'nome', 'Usuário')
+  );
+  RETURN NEW;
+END;
+$$;
+
+-- TRIGGER
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_user();
+
+***
+
+CREATE TABLE public.skills (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  image TEXT, 
+  descricao TEXT,
+  xp_skill INT NOT NULL,
+  base_effect JSONB NOT NULL
+);
+
+CREATE TABLE xp_item_definitions (
+  id INT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  xp INT NOT NULL,
+  drop_chance NUMERIC(5,4) NOT NULL
+);
+
+INSERT INTO xp_item_definitions VALUES
+(1, 'Frasco Pequeno', 500, 0.2),
+(2, 'Frasco Médio', 2000, 0.1),
+(3, 'Frasco Grande', 10000, 0.05),
+(4, 'Frasco Gigante', 25000, 0.01);
+
+***
+-- ============================================
+-- TABELA: INVENTÁRIO DE SKILLS DO USUÁRIO
+-- ============================================
+CREATE TABLE public.user_skills (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  skill_id INT NOT NULL REFERENCES public.skills(id) ON DELETE CASCADE,
+  quantidade INT NOT NULL DEFAULT 1 CHECK (quantidade >= 0),
+  equipada BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, skill_id)
+);
+
+CREATE INDEX idx_user_skills_user_id ON public.user_skills(user_id);
+CREATE INDEX idx_user_skills_equipada ON public.user_skills(user_id, equipada) WHERE equipada = TRUE;
+
+-- RLS para user_skills (OTIMIZADO)
+ALTER TABLE public.user_skills ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_skills_select_own"
+ON public.user_skills
+FOR SELECT
+USING (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "user_skills_insert_own"
+ON public.user_skills
+FOR INSERT
+WITH CHECK (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "user_skills_update_own"
+ON public.user_skills
+FOR UPDATE
+USING (user_id = (SELECT auth.uid()))
+WITH CHECK (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "user_skills_delete_own"
+ON public.user_skills
+FOR DELETE
+USING (user_id = (SELECT auth.uid()));
+
+***
+
+-- ============================================
+-- TABELA: INVENTÁRIO DE XP ITEMS DO USUÁRIO
+-- ============================================
+CREATE TABLE public.user_xp_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  item_id INT NOT NULL REFERENCES public.xp_item_definitions(id) ON DELETE CASCADE,
+  quantidade INT NOT NULL DEFAULT 1 CHECK (quantidade >= 0),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, item_id)
+);
+
+CREATE INDEX idx_user_xp_items_user_id ON public.user_xp_items(user_id);
+
+-- RLS para user_xp_items (OTIMIZADO)
+ALTER TABLE public.user_xp_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_xp_items_select_own"
+ON public.user_xp_items
+FOR SELECT
+USING (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "user_xp_items_insert_own"
+ON public.user_xp_items
+FOR INSERT
+WITH CHECK (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "user_xp_items_update_own"
+ON public.user_xp_items
+FOR UPDATE
+USING (user_id = (SELECT auth.uid()))
+WITH CHECK (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "user_xp_items_delete_own"
+ON public.user_xp_items
+FOR DELETE
+USING (user_id = (SELECT auth.uid()));
+
+
+***
+
+-- ============================================
+-- TABELA: MARKETPLACE (LOJA DE JOGADORES)
+-- ============================================
+CREATE TABLE public.marketplace_listings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  item_type TEXT NOT NULL CHECK (item_type IN ('skill', 'xp_item')),
+  item_id INT NOT NULL,
+  quantidade INT NOT NULL CHECK (quantidade > 0),
+  preco DECIMAL(10, 2) NOT NULL CHECK (preco > 0),
+  status TEXT NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa', 'vendida', 'cancelada')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_marketplace_status ON public.marketplace_listings(status) WHERE status = 'ativa';
+CREATE INDEX idx_marketplace_item ON public.marketplace_listings(item_type, item_id, status);
+CREATE INDEX idx_marketplace_seller ON public.marketplace_listings(seller_id);
+
+-- RLS para marketplace (OTIMIZADO)
+ALTER TABLE public.marketplace_listings ENABLE ROW LEVEL SECURITY;
+
+-- Todos podem ver anúncios ativos
+CREATE POLICY "marketplace_select_active"
+ON public.marketplace_listings
+FOR SELECT
+USING (status = 'ativa' OR seller_id = (SELECT auth.uid()));
+
+-- Apenas o vendedor pode inserir
+CREATE POLICY "marketplace_insert_own"
+ON public.marketplace_listings
+FOR INSERT
+WITH CHECK (seller_id = (SELECT auth.uid()) AND status = 'ativa');
+
+-- Apenas o vendedor pode atualizar seus próprios anúncios
+CREATE POLICY "marketplace_update_own"
+ON public.marketplace_listings
+FOR UPDATE
+USING (seller_id = (SELECT auth.uid()))
+WITH CHECK (seller_id = (SELECT auth.uid()));
+
+-- Apenas o vendedor pode deletar
+CREATE POLICY "marketplace_delete_own"
+ON public.marketplace_listings
+FOR DELETE
+USING (seller_id = (SELECT auth.uid()));
+
+***
+-- ============================================
+-- TABELA: HISTÓRICO DE TRANSAÇÕES
+-- ============================================
+CREATE TABLE public.transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN ('compra_marketplace', 'venda_marketplace', 'cancelamento_listing', 'uso_xp_item')),
+  item_type TEXT CHECK (item_type IN ('skill', 'xp_item')),
+  item_id INT,
+  quantidade INT NOT NULL DEFAULT 1,
+  valor DECIMAL(10, 2),
+  xp_ganho BIGINT,
+  detalhes JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_transactions_user_id ON public.transactions(user_id);
+CREATE INDEX idx_transactions_created_at ON public.transactions(created_at DESC);
+CREATE INDEX idx_transactions_tipo ON public.transactions(tipo);
+
+-- RLS para transactions (OTIMIZADO)
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "transactions_select_own"
+ON public.transactions
+FOR SELECT
+USING (user_id = (SELECT auth.uid()));
+
+CREATE POLICY "transactions_insert_own"
+ON public.transactions
+FOR INSERT
+WITH CHECK (user_id = (SELECT auth.uid()));
+
+***
+-- ============================================
+-- FUNÇÃO: ADICIONAR ITEM AO INVENTÁRIO (LOOT)
+-- ============================================
+CREATE OR REPLACE FUNCTION public.add_item_to_inventory(
+  p_user_id UUID,
+  p_item_type TEXT,
+  p_item_id INT,
+  p_quantidade INT DEFAULT 1
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  -- Validação de entrada
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  IF p_item_type NOT IN ('skill', 'xp_item') THEN
+    RAISE EXCEPTION 'Invalid item type';
+  END IF;
+
+  IF p_quantidade <= 0 THEN
+    RAISE EXCEPTION 'Quantidade deve ser maior que zero';
+  END IF;
+
+  -- Adicionar skill
+  IF p_item_type = 'skill' THEN
+    INSERT INTO public.user_skills (user_id, skill_id, quantidade)
+    VALUES (p_user_id, p_item_id, p_quantidade)
+    ON CONFLICT (user_id, skill_id) 
+    DO UPDATE SET 
+      quantidade = user_skills.quantidade + p_quantidade,
+      updated_at = NOW();
+    
+    v_result = jsonb_build_object(
+      'success', true,
+      'item_type', 'skill',
+      'item_id', p_item_id,
+      'quantidade', p_quantidade
+    );
+  
+  -- Adicionar XP item
+  ELSIF p_item_type = 'xp_item' THEN
+    INSERT INTO public.user_xp_items (user_id, item_id, quantidade)
+    VALUES (p_user_id, p_item_id, p_quantidade)
+    ON CONFLICT (user_id, item_id) 
+    DO UPDATE SET 
+      quantidade = user_xp_items.quantidade + p_quantidade,
+      updated_at = NOW();
+    
+    v_result = jsonb_build_object(
+      'success', true,
+      'item_type', 'xp_item',
+      'item_id', p_item_id,
+      'quantidade', p_quantidade
+    );
+  END IF;
+
+  -- Registrar no histórico
+  INSERT INTO public.transactions (user_id, tipo, item_type, item_id, quantidade)
+  VALUES (p_user_id, 'loot', p_item_type, p_item_id, p_quantidade);
+
+  RETURN v_result;
+END;
+$$;
+
+***
+-- ============================================
+-- FUNÇÃO: LISTAR ITEM NO MARKETPLACE
+-- ============================================
+CREATE OR REPLACE FUNCTION public.list_item_on_marketplace(
+  p_user_id UUID,
+  p_item_type TEXT,
+  p_item_id INT,
+  p_quantidade INT,
+  p_preco DECIMAL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_quantidade_disponivel INT;
+  v_listing_id UUID;
+BEGIN
+  -- Validação de autorização
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  IF p_item_type NOT IN ('skill', 'xp_item') THEN
+    RAISE EXCEPTION 'Tipo de item inválido';
+  END IF;
+
+  IF p_quantidade <= 0 OR p_preco <= 0 THEN
+    RAISE EXCEPTION 'Quantidade e preço devem ser maiores que zero';
+  END IF;
+
+  -- Verificar disponibilidade no inventário
+  IF p_item_type = 'skill' THEN
+    SELECT quantidade INTO v_quantidade_disponivel
+    FROM public.user_skills
+    WHERE user_id = p_user_id AND skill_id = p_item_id;
+  ELSE
+    SELECT quantidade INTO v_quantidade_disponivel
+    FROM public.user_xp_items
+    WHERE user_id = p_user_id AND item_id = p_item_id;
+  END IF;
+
+  IF v_quantidade_disponivel IS NULL OR v_quantidade_disponivel < p_quantidade THEN
+    RAISE EXCEPTION 'Quantidade insuficiente no inventário';
+  END IF;
+
+  -- Remover do inventário
+  IF p_item_type = 'skill' THEN
+    UPDATE public.user_skills
+    SET quantidade = quantidade - p_quantidade,
+        updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = p_item_id;
+    
+    -- Remover se quantidade chegou a zero
+    DELETE FROM public.user_skills
+    WHERE user_id = p_user_id AND skill_id = p_item_id AND quantidade = 0;
+  ELSE
+    UPDATE public.user_xp_items
+    SET quantidade = quantidade - p_quantidade,
+        updated_at = NOW()
+    WHERE user_id = p_user_id AND item_id = p_item_id;
+    
+    -- Remover se quantidade chegou a zero
+    DELETE FROM public.user_xp_items
+    WHERE user_id = p_user_id AND item_id = p_item_id AND quantidade = 0;
+  END IF;
+
+  -- Criar listing no marketplace
+  INSERT INTO public.marketplace_listings (seller_id, item_type, item_id, quantidade, preco)
+  VALUES (p_user_id, p_item_type, p_item_id, p_quantidade, p_preco)
+  RETURNING id INTO v_listing_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'listing_id', v_listing_id,
+    'item_type', p_item_type,
+    'item_id', p_item_id,
+    'quantidade', p_quantidade,
+    'preco', p_preco
+  );
+END;
+$$;
+
+***
+-- ============================================
+-- FUNÇÃO: COMPRAR ITEM DO MARKETPLACE
+-- ============================================
+CREATE OR REPLACE FUNCTION public.buy_from_marketplace(
+  p_buyer_id UUID,
+  p_listing_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_listing RECORD;
+  v_buyer_saldo DECIMAL(10, 2);
+  v_taxa DECIMAL(10, 2);
+  v_valor_vendedor DECIMAL(10, 2);
+BEGIN
+  -- Validação de autorização
+  IF p_buyer_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Buscar informações do listing
+  SELECT * INTO v_listing
+  FROM public.marketplace_listings
+  WHERE id = p_listing_id AND status = 'ativa'
+  FOR UPDATE;
+
+  IF v_listing.id IS NULL THEN
+    RAISE EXCEPTION 'Listing não encontrado ou já vendido';
+  END IF;
+
+  -- Não pode comprar do próprio anúncio
+  IF v_listing.seller_id = p_buyer_id THEN
+    RAISE EXCEPTION 'Você não pode comprar seu próprio anúncio';
+  END IF;
+
+  -- Verificar saldo do comprador
+  SELECT saldo INTO v_buyer_saldo
+  FROM public.users
+  WHERE id = p_buyer_id
+  FOR UPDATE;
+
+  IF v_buyer_saldo < v_listing.preco THEN
+    RAISE EXCEPTION 'Saldo insuficiente';
+  END IF;
+
+  -- Calcular taxa do marketplace (5%)
+  v_taxa := v_listing.preco * 0.05;
+  v_valor_vendedor := v_listing.preco - v_taxa;
+
+  -- Atualizar saldo do comprador
+  UPDATE public.users
+  SET saldo = saldo - v_listing.preco
+  WHERE id = p_buyer_id;
+
+  -- Atualizar saldo do vendedor
+  UPDATE public.users
+  SET saldo = saldo + v_valor_vendedor
+  WHERE id = v_listing.seller_id;
+
+  -- Adicionar item ao inventário do comprador
+  IF v_listing.item_type = 'skill' THEN
+    INSERT INTO public.user_skills (user_id, skill_id, quantidade)
+    VALUES (p_buyer_id, v_listing.item_id, v_listing.quantidade)
+    ON CONFLICT (user_id, skill_id)
+    DO UPDATE SET 
+      quantidade = user_skills.quantidade + v_listing.quantidade,
+      updated_at = NOW();
+  ELSE
+    INSERT INTO public.user_xp_items (user_id, item_id, quantidade)
+    VALUES (p_buyer_id, v_listing.item_id, v_listing.quantidade)
+    ON CONFLICT (user_id, item_id)
+    DO UPDATE SET 
+      quantidade = user_xp_items.quantidade + v_listing.quantidade,
+      updated_at = NOW();
+  END IF;
+
+  -- Marcar listing como vendido
+  UPDATE public.marketplace_listings
+  SET status = 'vendida',
+      updated_at = NOW()
+  WHERE id = p_listing_id;
+
+  -- Registrar transação do comprador
+  INSERT INTO public.transactions (
+    user_id, tipo, item_type, item_id, quantidade, valor,
+    detalhes
+  )
+  VALUES (
+    p_buyer_id, 'compra_marketplace', v_listing.item_type, 
+    v_listing.item_id, v_listing.quantidade, v_listing.preco,
+    jsonb_build_object(
+      'listing_id', p_listing_id,
+      'seller_id', v_listing.seller_id
+    )
+  );
+
+  -- Registrar transação do vendedor
+  INSERT INTO public.transactions (
+    user_id, tipo, item_type, item_id, quantidade, valor,
+    detalhes
+  )
+  VALUES (
+    v_listing.seller_id, 'venda_marketplace', v_listing.item_type,
+    v_listing.item_id, v_listing.quantidade, v_valor_vendedor,
+    jsonb_build_object(
+      'listing_id', p_listing_id,
+      'buyer_id', p_buyer_id,
+      'preco_total', v_listing.preco,
+      'taxa_marketplace', v_taxa
+    )
+  );
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'item_type', v_listing.item_type,
+    'item_id', v_listing.item_id,
+    'quantidade', v_listing.quantidade,
+    'preco_pago', v_listing.preco
+  );
+END;
+$$;
+
+***
+-- ============================================
+-- FUNÇÃO: CANCELAR LISTING NO MARKETPLACE
+-- ============================================
+CREATE OR REPLACE FUNCTION public.cancel_marketplace_listing(
+  p_user_id UUID,
+  p_listing_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_listing RECORD;
+BEGIN
+  -- Validação de autorização
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Buscar listing
+  SELECT * INTO v_listing
+  FROM public.marketplace_listings
+  WHERE id = p_listing_id AND seller_id = p_user_id AND status = 'ativa'
+  FOR UPDATE;
+
+  IF v_listing.id IS NULL THEN
+    RAISE EXCEPTION 'Listing não encontrado ou já processado';
+  END IF;
+
+  -- Devolver item ao inventário
+  IF v_listing.item_type = 'skill' THEN
+    INSERT INTO public.user_skills (user_id, skill_id, quantidade)
+    VALUES (p_user_id, v_listing.item_id, v_listing.quantidade)
+    ON CONFLICT (user_id, skill_id)
+    DO UPDATE SET 
+      quantidade = user_skills.quantidade + v_listing.quantidade,
+      updated_at = NOW();
+  ELSE
+    INSERT INTO public.user_xp_items (user_id, item_id, quantidade)
+    VALUES (p_user_id, v_listing.item_id, v_listing.quantidade)
+    ON CONFLICT (user_id, item_id)
+    DO UPDATE SET 
+      quantidade = user_xp_items.quantidade + v_listing.quantidade,
+      updated_at = NOW();
+  END IF;
+
+  -- Marcar como cancelado
+  UPDATE public.marketplace_listings
+  SET status = 'cancelada',
+      updated_at = NOW()
+  WHERE id = p_listing_id;
+
+  -- Registrar transação
+  INSERT INTO public.transactions (
+    user_id, tipo, item_type, item_id, quantidade,
+    detalhes
+  )
+  VALUES (
+    p_user_id, 'cancelamento_listing', v_listing.item_type,
+    v_listing.item_id, v_listing.quantidade,
+    jsonb_build_object('listing_id', p_listing_id)
+  );
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'item_devolvido', true
+  );
+END;
+$$;
+
+***
+CREATE OR REPLACE FUNCTION public.use_xp_item(
+  p_user_id UUID,
+  p_item_id INT,
+  p_quantidade INT DEFAULT 1
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_xp_max CONSTANT BIGINT := 360000;
+  v_item_xp INT;
+  v_xp_total BIGINT;
+  v_quantidade_atual INT;
+  v_xp_atual BIGINT;
+  v_novo_xp BIGINT;
+  v_novo_nivel INT;
+BEGIN
+  IF p_user_id IS NULL OR p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  IF p_quantidade NOT IN (1, 10) THEN
+    RAISE EXCEPTION 'Quantidade inválida';
+  END IF;
+
+  SELECT xp
+  INTO v_item_xp
+  FROM public.xp_item_definitions
+  WHERE id = p_item_id;
+
+  IF v_item_xp IS NULL THEN
+    RAISE EXCEPTION 'Item não encontrado';
+  END IF;
+
+  SELECT quantidade
+  INTO v_quantidade_atual
+  FROM public.user_xp_items
+  WHERE user_id = p_user_id
+    AND item_id = p_item_id
+  FOR UPDATE;
+
+  IF v_quantidade_atual IS NULL OR v_quantidade_atual < p_quantidade THEN
+    RAISE EXCEPTION 'Quantidade insuficiente';
+  END IF;
+
+  SELECT xp
+  INTO v_xp_atual
+  FROM public.users
+  WHERE id = p_user_id
+  FOR UPDATE;
+
+  IF v_xp_atual IS NULL THEN
+    RAISE EXCEPTION 'Usuário não encontrado';
+  END IF;
+
+  v_xp_total := v_item_xp * p_quantidade;
+
+  IF v_xp_atual >= v_xp_max THEN
+    RAISE EXCEPTION 'XP máximo já atingido';
+  END IF;
+
+  v_novo_xp := LEAST(v_xp_max, v_xp_atual + v_xp_total);
+
+  v_novo_nivel := GREATEST(
+    1,
+    FLOOR(SQRT(v_novo_xp / 100.0))
+  );
+
+  UPDATE public.users
+  SET xp = v_novo_xp,
+      nivel = v_novo_nivel
+  WHERE id = p_user_id;
+
+  IF v_quantidade_atual = p_quantidade THEN
+    DELETE FROM public.user_xp_items
+    WHERE user_id = p_user_id
+      AND item_id = p_item_id;
+  ELSE
+    UPDATE public.user_xp_items
+    SET quantidade = quantidade - p_quantidade,
+        updated_at = NOW()
+    WHERE user_id = p_user_id
+      AND item_id = p_item_id;
+  END IF;
+
+  INSERT INTO public.transactions (
+    user_id,
+    tipo,
+    item_type,
+    item_id,
+    quantidade,
+    xp_ganho
+  )
+  VALUES (
+    p_user_id,
+    'uso_xp_item',
+    'xp_item',
+    p_item_id,
+    p_quantidade,
+    v_novo_xp - v_xp_atual
+  );
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'xp_ganho', v_novo_xp - v_xp_atual,
+    'novo_xp', v_novo_xp,
+    'novo_nivel', v_novo_nivel
+  );
+END;
+$$;
+
+***
+CREATE OR REPLACE FUNCTION public.equip_skill_to_slot(
+  p_user_id UUID,
+  p_skill_id INT,
+  p_slot SMALLINT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_level INT;
+  v_max_slots INT;
+  v_skill_exists BOOLEAN;
+BEGIN
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  SELECT EXISTS(
+    SELECT 1 FROM public.user_skills 
+    WHERE user_id = p_user_id AND skill_id = p_skill_id
+  ) INTO v_skill_exists;
+
+  IF NOT v_skill_exists THEN
+    RAISE EXCEPTION 'Skill não encontrada no inventário';
+  END IF;
+
+  IF p_slot IS NOT NULL THEN
+    IF p_slot < 1 OR p_slot > 6 THEN
+      RAISE EXCEPTION 'Slot deve estar entre 1 e 6';
+    END IF;
+
+    SELECT nivel INTO v_user_level FROM public.users WHERE id = p_user_id; -- ✅ AQUI
+    v_max_slots := LEAST(FLOOR(v_user_level / 10), 6);
+
+    IF p_slot > v_max_slots THEN
+      RAISE EXCEPTION 'Slot % bloqueado. Requer nível %', p_slot, p_slot * 10;
+    END IF;
+
+    UPDATE public.user_skills
+    SET slot = NULL, updated_at = NOW()
+    WHERE user_id = p_user_id AND slot = p_slot;
+  END IF;
+
+  UPDATE public.user_skills
+  SET slot = p_slot, updated_at = NOW()
+  WHERE user_id = p_user_id AND skill_id = p_skill_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'slot', p_slot
+  );
+END;
+$$;
+***
+-- ============================================
+-- TRIGGER: ATUALIZAR updated_at
+-- ============================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER update_user_skills_updated_at
+BEFORE UPDATE ON public.user_skills
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_xp_items_updated_at
+BEFORE UPDATE ON public.user_xp_items
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_marketplace_listings_updated_at
+BEFORE UPDATE ON public.marketplace_listings
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+***
+-- ============================================
+-- FUNÇÃO: GERAR LOOT BASEADO NO NÍVEL DO JOGADOR
+-- ============================================
+CREATE OR REPLACE FUNCTION public.generate_loot(
+  p_user_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  v_user_level INT;
+  v_pool_id INT;
+  v_total_weight INT;
+  v_random INT;
+  v_cumulative INT := 0;
+  v_item RECORD;
+  v_selected_item RECORD;
+  v_item_details RECORD;
+  v_skill_count INT;
+  v_random_skill_id INT;
+BEGIN
+  -- Validação de autorização
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Buscar nível do usuário
+  SELECT nivel INTO v_user_level
+  FROM public.users
+  WHERE id = p_user_id;
+
+  IF v_user_level IS NULL THEN
+    RAISE EXCEPTION 'Usuário não encontrado';
+  END IF;
+
+  -- Encontrar o pool apropriado para o nível do usuário
+  SELECT id INTO v_pool_id
+  FROM public.loot_pools
+  WHERE v_user_level >= level_min AND v_user_level <= level_max
+  LIMIT 1;
+
+  -- Se não encontrou pool, usar o pool de menor nível
+  IF v_pool_id IS NULL THEN
+    SELECT id INTO v_pool_id
+    FROM public.loot_pools
+    ORDER BY level_min ASC
+    LIMIT 1;
+  END IF;
+
+  IF v_pool_id IS NULL THEN
+    RAISE EXCEPTION 'Nenhum loot pool configurado';
+  END IF;
+
+  -- Calcular peso total do pool
+  SELECT SUM(weight) INTO v_total_weight
+  FROM public.loot_pool_items
+  WHERE pool_id = v_pool_id;
+
+  IF v_total_weight IS NULL OR v_total_weight = 0 THEN
+    RAISE EXCEPTION 'Pool de loot vazio';
+  END IF;
+
+  -- Gerar número aleatório entre 1 e peso total
+  v_random := floor(random() * v_total_weight) + 1;
+
+  -- Selecionar item baseado no peso
+  FOR v_item IN
+    SELECT item_type, item_id, weight
+    FROM public.loot_pool_items
+    WHERE pool_id = v_pool_id
+    ORDER BY weight DESC, id ASC
+  LOOP
+    v_cumulative := v_cumulative + v_item.weight;
+    
+    IF v_random <= v_cumulative THEN
+      v_selected_item := v_item;
+      EXIT;
+    END IF;
+  END LOOP;
+
+  -- Garantir que sempre tenha um item selecionado
+  IF v_selected_item.item_id IS NULL AND v_selected_item.item_type IS NULL THEN
+    SELECT item_type, item_id INTO v_selected_item
+    FROM public.loot_pool_items
+    WHERE pool_id = v_pool_id
+    ORDER BY weight DESC
+    LIMIT 1;
+  END IF;
+
+  -- Se selecionou skill_pool, sortear uma skill aleatória
+  IF v_selected_item.item_type = 'skill_pool' THEN
+    -- Contar total de skills disponíveis
+    SELECT COUNT(*) INTO v_skill_count
+    FROM public.skills;
+
+    IF v_skill_count = 0 THEN
+      RAISE EXCEPTION 'Nenhuma skill disponível para sortear';
+    END IF;
+
+    -- Sortear uma skill aleatória (todas com chance igual)
+    SELECT id INTO v_random_skill_id
+    FROM public.skills
+    ORDER BY random()
+    LIMIT 1;
+
+    -- Atualizar para skill específica
+    v_selected_item.item_type := 'skill';
+    v_selected_item.item_id := v_random_skill_id;
+  END IF;
+
+  -- Buscar detalhes do item
+  IF v_selected_item.item_type = 'skill' THEN
+    SELECT 
+      id, 
+      name, 
+      xp_skill as xp, 
+      image,
+      NULL as xp_image
+    INTO v_item_details
+    FROM public.skills
+    WHERE id = v_selected_item.item_id;
+    
+    -- Adicionar ao inventário de skills
+    INSERT INTO public.user_skills (user_id, skill_id, quantidade)
+    VALUES (p_user_id, v_selected_item.item_id, 1)
+    ON CONFLICT (user_id, skill_id) 
+    DO UPDATE SET 
+      quantidade = user_skills.quantidade + 1,
+      updated_at = NOW();
+  ELSE
+    SELECT 
+      id, 
+      nome as name, 
+      xp,
+      NULL as image,
+      xp_image
+    INTO v_item_details
+    FROM public.xp_item_definitions
+    WHERE id = v_selected_item.item_id;
+    
+    -- Adicionar ao inventário de XP items
+    INSERT INTO public.user_xp_items (user_id, item_id, quantidade)
+    VALUES (p_user_id, v_selected_item.item_id, 1)
+    ON CONFLICT (user_id, item_id) 
+    DO UPDATE SET 
+      quantidade = user_xp_items.quantidade + 1,
+      updated_at = NOW();
+  END IF;
+
+  -- Registrar no histórico
+  INSERT INTO public.transactions (
+    user_id, 
+    tipo, 
+    item_type, 
+    item_id, 
+    quantidade,
+    detalhes
+  )
+  VALUES (
+    p_user_id, 
+    'loot', 
+    v_selected_item.item_type, 
+    v_selected_item.item_id, 
+    1,
+    jsonb_build_object(
+      'pool_id', v_pool_id,
+      'user_level', v_user_level
+    )
+  );
+
+  -- Retornar informações do loot
+  RETURN jsonb_build_object(
+    'success', true,
+    'item_type', v_selected_item.item_type,
+    'item_id', v_item_details.id,
+    'item_name', v_item_details.name,
+    'item_xp', v_item_details.xp,
+    'item_image', v_item_details.image,
+    'item_xp_image', v_item_details.xp_image,
+    'user_level', v_user_level,
+    'pool_id', v_pool_id
+  );
+END;
+$function$;
+
+
+-- ============================================
+-- FUNÇÃO: LISTAR ITENS DE UM POOL (para debug/admin)
+-- ============================================
+CREATE OR REPLACE FUNCTION public.get_pool_items(p_pool_id INT)
+RETURNS TABLE (
+  item_type TEXT,
+  item_id INT,
+  item_name TEXT,
+  weight INT,
+  probability NUMERIC
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $function$
+DECLARE
+  v_total_weight INT;
+BEGIN
+  -- Calcular peso total
+  SELECT SUM(lpi.weight) INTO v_total_weight
+  FROM public.loot_pool_items lpi
+  WHERE lpi.pool_id = p_pool_id;
+
+  -- Retornar itens com probabilidade calculada
+  RETURN QUERY
+  SELECT 
+    lpi.item_type,
+    lpi.item_id,
+    CASE 
+      WHEN lpi.item_type = 'skill' THEN s.name
+      ELSE x.nome
+    END as item_name,
+    lpi.weight,
+    ROUND((lpi.weight::NUMERIC / v_total_weight::NUMERIC) * 100, 2) as probability
+  FROM public.loot_pool_items lpi
+  LEFT JOIN public.skills s ON lpi.item_type = 'skill' AND lpi.item_id = s.id
+  LEFT JOIN public.xp_item_definitions x ON lpi.item_type = 'xp_item' AND lpi.item_id = x.id
+  WHERE lpi.pool_id = p_pool_id
+  ORDER BY lpi.weight DESC;
+END;
+$function$;
+
+
+-- ============================================
+-- VIEW: VISUALIZAR TODOS OS POOLS E ITENS
+-- ============================================
+CREATE OR REPLACE VIEW public.v_loot_pools_summary AS
+WITH pool_weights AS (
+  SELECT
+    pool_id,
+    SUM(weight) AS total_weight
+  FROM public.loot_pool_items
+  GROUP BY pool_id
+)
+SELECT 
+  lp.id AS pool_id,
+  lp.name AS pool_name,
+  lp.level_min,
+  lp.level_max,
+  COUNT(lpi.id) AS total_items,
+  pw.total_weight,
+  json_agg(
+    json_build_object(
+      'item_type', lpi.item_type,
+      'item_id', lpi.item_id,
+      'weight', lpi.weight,
+      'probability',
+        ROUND(
+          (lpi.weight::NUMERIC / pw.total_weight::NUMERIC) * 100,
+          2
+        )
+    )
+    ORDER BY lpi.weight DESC
+  ) AS items
+FROM public.loot_pools lp
+LEFT JOIN public.loot_pool_items lpi ON lp.id = lpi.pool_id
+LEFT JOIN pool_weights pw ON lp.id = pw.pool_id
+GROUP BY 
+  lp.id,
+  lp.name,
+  lp.level_min,
+  lp.level_max,
+  pw.total_weight
+ORDER BY lp.level_min;
+
+***
+-- ============================================
+-- TABELA: LOOT POOLS (POOLS POR NÍVEL)
+-- ============================================
+CREATE TABLE public.loot_pools (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  level_min INT NOT NULL CHECK (level_min >= 1),
+  level_max INT NOT NULL CHECK (level_max >= level_min),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_loot_pools_level ON public.loot_pools(level_min, level_max);
+
+-- Inserir pools de exemplo
+INSERT INTO public.loot_pools (name, level_min, level_max) VALUES
+('early', 1, 10),
+('mid1', 11, 20),
+('mid2', 21, 30),
+('late1', 31, 40),
+('late2', 41, 50);
+
+
+-- ============================================
+-- TABELA: LOOT POOL ITEMS (ITENS EM CADA POOL)
+-- ============================================
+CREATE TABLE public.loot_pool_items (
+  id SERIAL PRIMARY KEY,
+  pool_id INT NOT NULL REFERENCES public.loot_pools(id) ON DELETE CASCADE,
+  item_type TEXT NOT NULL CHECK (item_type IN ('skill', 'xp_item', 'skill_pool')),
+  item_id INT, -- NULL para skill_pool
+  weight INT NOT NULL CHECK (weight > 0),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(pool_id, item_type, item_id)
+);
+
+CREATE INDEX idx_loot_pool_items_pool ON public.loot_pool_items(pool_id);
+CREATE INDEX idx_loot_pool_items_type ON public.loot_pool_items(item_type, item_id);
+
+-- RLS para loot_pools e loot_pool_items (leitura pública)
+ALTER TABLE public.loot_pools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.loot_pool_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "loot_pools_select_all"
+ON public.loot_pools
+FOR SELECT
+USING (true);
+
+CREATE POLICY "loot_pool_items_select_all"
+ON public.loot_pool_items
+FOR SELECT
+USING (true);
+
+***
+-- 1. ATUALIZAR TABELA SKILLS
+ALTER TABLE public.skills 
+  DROP COLUMN IF EXISTS base_effect,
+  ADD COLUMN tipo TEXT NOT NULL DEFAULT 'dano', -- dano, buff, debuff, dot, especial
+  ADD COLUMN duracao INT DEFAULT 1, -- turnos de duração do efeito
+  ADD COLUMN cooldown INT DEFAULT 0, -- turnos de recarga
+  ADD COLUMN alvo TEXT DEFAULT 'inimigo', -- inimigo, self, ambos
+  ADD COLUMN efeito JSONB NOT NULL DEFAULT '{}'; -- estrutura flexível para efeitos
+
+-- Index para queries por tipo
+CREATE INDEX idx_skills_tipo ON public.skills(tipo);
+
+-- 2. ATUALIZAR USER_SKILLS
+ALTER TABLE public.user_skills
+  DROP COLUMN equipada,
+  DROP COLUMN quantidade,
+  ADD COLUMN slot SMALLINT CHECK (slot BETWEEN 1 AND 6), -- slot equipado (null = não equipado)
+  ADD COLUMN nivel_desbloqueio INT NOT NULL DEFAULT 10; -- quando pode equipar
+
+-- Constraint: 1 skill por slot
+CREATE UNIQUE INDEX idx_user_skills_slot ON public.user_skills(user_id, slot) WHERE slot IS NOT NULL;
+
+-- Index otimizado para buscar skills equipadas
+CREATE INDEX idx_user_skills_equipadas ON public.user_skills(user_id) WHERE slot IS NOT NULL;
+
+-- 3. NOVA TABELA: BATALHAS
+CREATE TABLE public.batalhas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  oponente_id UUID REFERENCES public.users(id) ON DELETE SET NULL, -- null = NPC
+  turno_atual INT NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'ativa', -- ativa, finalizada
+  vencedor_id UUID,
+  estado JSONB NOT NULL, -- HP, buffs, debuffs, cooldowns
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_batalhas_user ON public.batalhas(user_id) WHERE status = 'ativa';
+
+-- 4. TABELA DE EFEITOS ATIVOS (durante batalha)
+CREATE TABLE public.batalha_efeitos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  batalha_id UUID NOT NULL REFERENCES public.batalhas(id) ON DELETE CASCADE,
+  alvo TEXT NOT NULL, -- 'user', 'oponente'
+  tipo TEXT NOT NULL,
+  valor NUMERIC,
+  turnos_restantes INT NOT NULL,
+  metadata JSONB DEFAULT '{}'
+);
+
+CREATE INDEX idx_batalha_efeitos_lookup ON public.batalha_efeitos(batalha_id, alvo);
+
+***
+CREATE OR REPLACE FUNCTION check_slots_disponiveis(p_user_level INT)
+RETURNS INT AS $$
+BEGIN
+  RETURN LEAST(FLOOR(p_user_level / 10), 6);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE TABLE public.batalhas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  oponente_id UUID REFERENCES users(id),
+  vencedor_id UUID,
+  log_turnos JSONB, -- array com cada turno
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE OR REPLACE FUNCTION calcular_stats(base_valor NUMERIC, nivel INT)
+RETURNS NUMERIC AS $$
+BEGIN
+  IF nivel <= 1 THEN
+    RETURN base_valor;
+  ELSE
+    RETURN base_valor * (1 + (nivel - 1) * 0.2);
+  END IF;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+***
+-- ============================================
+-- TABELA: user_builds
+-- Armazena as builds salvas pelo usuário (máximo 3)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.user_builds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  slot_1 INTEGER REFERENCES public.skills(id) ON DELETE SET NULL,
+  slot_2 INTEGER REFERENCES public.skills(id) ON DELETE SET NULL,
+  slot_3 INTEGER REFERENCES public.skills(id) ON DELETE SET NULL,
+  slot_4 INTEGER REFERENCES public.skills(id) ON DELETE SET NULL,
+  slot_5 INTEGER REFERENCES public.skills(id) ON DELETE SET NULL,
+  slot_6 INTEGER REFERENCES public.skills(id) ON DELETE SET NULL,
+  is_active BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT unique_user_build_name UNIQUE(user_id, nome)
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_user_builds_user_id ON public.user_builds(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_builds_active ON public.user_builds(user_id, is_active);
+
+-- RLS (Row Level Security)
+DROP POLICY IF EXISTS "Usuários podem ver suas próprias builds"
+ON public.user_builds;
+
+CREATE POLICY "Usuários podem ver suas próprias builds"
+ON public.user_builds
+FOR SELECT
+USING (user_id = (select auth.uid()));
+
+-- INSERT
+DROP POLICY IF EXISTS "Usuários podem inserir suas próprias builds"
+ON public.user_builds;
+
+CREATE POLICY "Usuários podem inserir suas próprias builds"
+ON public.user_builds
+FOR INSERT
+WITH CHECK (user_id = (select auth.uid()));
+
+-- UPDATE
+DROP POLICY IF EXISTS "Usuários podem atualizar suas próprias builds"
+ON public.user_builds;
+
+CREATE POLICY "Usuários podem atualizar suas próprias builds"
+ON public.user_builds
+FOR UPDATE
+USING (user_id = (select auth.uid()))
+WITH CHECK (user_id = (select auth.uid()));
+
+-- DELETE
+DROP POLICY IF EXISTS "Usuários podem deletar suas próprias builds"
+ON public.user_builds;
+
+CREATE POLICY "Usuários podem deletar suas próprias builds"
+ON public.user_builds
+FOR DELETE
+USING (user_id = (select auth.uid()));
+
+
+-- ============================================
+-- FUNÇÃO: Validar limite de 3 builds por usuário
+-- ============================================
+CREATE OR REPLACE FUNCTION check_build_limit()
+RETURNS TRIGGER AS $$
+DECLARE
+  build_count INT;
+BEGIN
+  SELECT COUNT(*) INTO build_count
+  FROM public.user_builds
+  WHERE user_id = NEW.user_id;
+  
+  IF build_count >= 3 THEN
+    RAISE EXCEPTION 'Limite de 3 builds por usuário atingido';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_build_limit
+  BEFORE INSERT ON public.user_builds
+  FOR EACH ROW
+  EXECUTE FUNCTION check_build_limit();
+
+-- ============================================
+-- FUNÇÃO: Salvar build atual
+-- ============================================
+CREATE OR REPLACE FUNCTION public.save_current_build(
+  p_user_id UUID,
+  p_nome TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_build_id UUID;
+  v_skills RECORD;
+BEGIN
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Validar nome
+  IF LENGTH(TRIM(p_nome)) < 1 THEN
+    RAISE EXCEPTION 'Nome da build não pode estar vazio';
+  END IF;
+
+  -- Buscar skills equipadas nos slots
+  SELECT 
+    MAX(CASE WHEN slot = 1 THEN skill_id END) AS slot_1,
+    MAX(CASE WHEN slot = 2 THEN skill_id END) AS slot_2,
+    MAX(CASE WHEN slot = 3 THEN skill_id END) AS slot_3,
+    MAX(CASE WHEN slot = 4 THEN skill_id END) AS slot_4,
+    MAX(CASE WHEN slot = 5 THEN skill_id END) AS slot_5,
+    MAX(CASE WHEN slot = 6 THEN skill_id END) AS slot_6
+  INTO v_skills
+  FROM public.user_skills
+  WHERE user_id = p_user_id
+    AND slot IS NOT NULL;
+
+  -- Inserir nova build
+  INSERT INTO public.user_builds (
+    user_id, nome, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6
+  ) VALUES (
+    p_user_id, p_nome, 
+    v_skills.slot_1, v_skills.slot_2, v_skills.slot_3,
+    v_skills.slot_4, v_skills.slot_5, v_skills.slot_6
+  )
+  RETURNING id INTO v_build_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'build_id', v_build_id,
+    'message', 'Build salva com sucesso'
+  );
+END;
+$$;
+
+-- ============================================
+-- FUNÇÃO: Carregar build
+-- ============================================
+CREATE OR REPLACE FUNCTION public.load_build(
+  p_user_id UUID,
+  p_build_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_build RECORD;
+  v_user_level INT;
+  v_max_slots INT;
+BEGIN
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Buscar build
+  SELECT * INTO v_build
+  FROM public.user_builds
+  WHERE id = p_build_id AND user_id = p_user_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Build não encontrada';
+  END IF;
+
+  -- Verificar nível do usuário
+  SELECT nivel INTO v_user_level
+  FROM public.users
+  WHERE id = p_user_id;
+
+  v_max_slots := LEAST(FLOOR(v_user_level / 10), 6);
+
+  -- Limpar slots atuais
+  UPDATE public.user_skills
+  SET slot = NULL, updated_at = NOW()
+  WHERE user_id = p_user_id AND slot IS NOT NULL;
+
+  -- Carregar build (respeitando limite de slots)
+  IF v_build.slot_1 IS NOT NULL AND v_max_slots >= 1 THEN
+    UPDATE public.user_skills
+    SET slot = 1, updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = v_build.slot_1;
+  END IF;
+
+  IF v_build.slot_2 IS NOT NULL AND v_max_slots >= 2 THEN
+    UPDATE public.user_skills
+    SET slot = 2, updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = v_build.slot_2;
+  END IF;
+
+  IF v_build.slot_3 IS NOT NULL AND v_max_slots >= 3 THEN
+    UPDATE public.user_skills
+    SET slot = 3, updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = v_build.slot_3;
+  END IF;
+
+  IF v_build.slot_4 IS NOT NULL AND v_max_slots >= 4 THEN
+    UPDATE public.user_skills
+    SET slot = 4, updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = v_build.slot_4;
+  END IF;
+
+  IF v_build.slot_5 IS NOT NULL AND v_max_slots >= 5 THEN
+    UPDATE public.user_skills
+    SET slot = 5, updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = v_build.slot_5;
+  END IF;
+
+  IF v_build.slot_6 IS NOT NULL AND v_max_slots >= 6 THEN
+    UPDATE public.user_skills
+    SET slot = 6, updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = v_build.slot_6;
+  END IF;
+
+  -- Marcar como build ativa
+  UPDATE public.user_builds
+  SET is_active = FALSE
+  WHERE user_id = p_user_id;
+
+  UPDATE public.user_builds
+  SET is_active = TRUE, updated_at = NOW()
+  WHERE id = p_build_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Build carregada com sucesso'
+  );
+END;
+$$;
+
+-- ============================================
+-- FUNÇÃO: Atualizar build existente
+-- ============================================
+CREATE OR REPLACE FUNCTION public.update_build(
+  p_user_id UUID,
+  p_build_id UUID,
+  p_nome TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_skills RECORD;
+BEGIN
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Verificar se build existe
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_builds
+    WHERE id = p_build_id AND user_id = p_user_id
+  ) THEN
+    RAISE EXCEPTION 'Build não encontrada';
+  END IF;
+
+  -- Buscar skills equipadas
+  SELECT 
+    MAX(CASE WHEN slot = 1 THEN skill_id END) AS slot_1,
+    MAX(CASE WHEN slot = 2 THEN skill_id END) AS slot_2,
+    MAX(CASE WHEN slot = 3 THEN skill_id END) AS slot_3,
+    MAX(CASE WHEN slot = 4 THEN skill_id END) AS slot_4,
+    MAX(CASE WHEN slot = 5 THEN skill_id END) AS slot_5,
+    MAX(CASE WHEN slot = 6 THEN skill_id END) AS slot_6
+  INTO v_skills
+  FROM public.user_skills
+  WHERE user_id = p_user_id AND slot IS NOT NULL;
+
+  -- Atualizar build
+  UPDATE public.user_builds
+  SET 
+    nome = COALESCE(p_nome, nome),
+    slot_1 = v_skills.slot_1,
+    slot_2 = v_skills.slot_2,
+    slot_3 = v_skills.slot_3,
+    slot_4 = v_skills.slot_4,
+    slot_5 = v_skills.slot_5,
+    slot_6 = v_skills.slot_6,
+    updated_at = NOW()
+  WHERE id = p_build_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Build atualizada com sucesso'
+  );
+END;
+$$;
+
+-- ============================================
+-- FUNÇÃO: Deletar build
+-- ============================================
+CREATE OR REPLACE FUNCTION public.delete_build(
+  p_user_id UUID,
+  p_build_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  DELETE FROM public.user_builds
+  WHERE id = p_build_id AND user_id = p_user_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Build não encontrada';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Build deletada com sucesso'
+  );
+END;
+$$;
+
+***
+-- ============================================
+-- PARTE 2: CRIAR FUNÇÃO OTIMIZADA DE BATCH EQUIP
+-- ============================================
+
+CREATE OR REPLACE FUNCTION public.equip_build_batch(
+  p_user_id UUID,
+  p_skill_slots JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_level INT;
+  v_max_slots INT;
+  v_skill_slot JSONB;
+  v_slot_num SMALLINT;
+  v_skill_id INT;
+  v_skill_exists BOOLEAN;
+BEGIN
+  -- Validação de autorização
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Buscar nível do usuário uma única vez
+  SELECT nivel INTO v_user_level 
+  FROM public.users 
+  WHERE id = p_user_id;
+
+  IF v_user_level IS NULL THEN
+    RAISE EXCEPTION 'Usuário não encontrado';
+  END IF;
+
+  -- Calcular slots desbloqueados
+  v_max_slots := LEAST(FLOOR(v_user_level / 10), 6);
+
+  -- Desequipar todas as skills atuais (uma única operação)
+  UPDATE public.user_skills
+  SET slot = NULL, updated_at = NOW()
+  WHERE user_id = p_user_id AND slot IS NOT NULL;
+
+  -- Validar e equipar cada skill do array
+  FOR v_skill_slot IN SELECT * FROM jsonb_array_elements(p_skill_slots)
+  LOOP
+    v_skill_id := (v_skill_slot->>'skill_id')::INT;
+    v_slot_num := (v_skill_slot->>'slot')::SMALLINT;
+
+    -- Validar se o slot está dentro do range
+    IF v_slot_num < 1 OR v_slot_num > 6 THEN
+      RAISE EXCEPTION 'Slot % inválido. Deve estar entre 1 e 6', v_slot_num;
+    END IF;
+
+    -- Validar se o slot está desbloqueado
+    IF v_slot_num > v_max_slots THEN
+      RAISE EXCEPTION 'Slot % bloqueado. Requer nível %', v_slot_num, v_slot_num * 10;
+    END IF;
+
+    -- Verificar se a skill existe no inventário do usuário
+    SELECT EXISTS(
+      SELECT 1 FROM public.user_skills 
+      WHERE user_id = p_user_id AND skill_id = v_skill_id
+    ) INTO v_skill_exists;
+
+    IF NOT v_skill_exists THEN
+      RAISE EXCEPTION 'Skill % não encontrada no inventário', v_skill_id;
+    END IF;
+
+    -- Equipar a skill
+    UPDATE public.user_skills
+    SET slot = v_slot_num, updated_at = NOW()
+    WHERE user_id = p_user_id AND skill_id = v_skill_id;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'equipped_count', jsonb_array_length(p_skill_slots),
+    'message', 'Build equipada com sucesso'
+  );
+END;
+$$;
+
+-- Comentário da função
+COMMENT ON FUNCTION public.equip_build_batch IS 
+'Equipa múltiplas skills de uma vez em uma única transação. 
+Recebe um array JSONB no formato: [{"skill_id": 1, "slot": 1}, {"skill_id": 2, "slot": 2}, ...]';
+
+
+-- ============================================
+-- PARTE 3: ÍNDICES PARA MELHORAR PERFORMANCE
+-- ============================================
+
+-- Índices para user_skills (se ainda não existirem)
+CREATE INDEX IF NOT EXISTS idx_user_skills_user_slot 
+ON public.user_skills(user_id, slot) 
+WHERE slot IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_user_skills_user_skill 
+ON public.user_skills(user_id, skill_id);
+
+-- Índices para marketplace_listings
+CREATE INDEX IF NOT EXISTS idx_marketplace_status_type 
+ON public.marketplace_listings(status, item_type, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_marketplace_seller 
+ON public.marketplace_listings(seller_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_marketplace_item 
+ON public.marketplace_listings(item_type, item_id) 
+WHERE status = 'ativa';
+
+-- Índices para user_xp_items
+CREATE INDEX IF NOT EXISTS idx_user_xp_items_user 
+ON public.user_xp_items(user_id, created_at DESC);
+
+-- Índices para transactions
+CREATE INDEX IF NOT EXISTS idx_transactions_user 
+ON public.transactions(user_id, created_at DESC);
+
+***
+-- ============================================
+-- ADICIONAR COLUNA NA TABELA USERS
+-- ============================================
+ALTER TABLE public.users 
+ADD COLUMN IF NOT EXISTS last_daily_loot_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_users_last_daily_loot ON public.users(last_daily_loot_at);
+
+
+-- ============================================
+-- FUNÇÃO: GERAR LOOT DIÁRIO (15 ITENS)
+-- ============================================
+CREATE OR REPLACE FUNCTION public.generate_daily_loot(p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  v_user_level INT;
+  v_last_loot TIMESTAMPTZ;
+  v_today_start TIMESTAMPTZ;
+  v_pool_id INT;
+  v_total_weight INT;
+  v_items JSONB[] := '{}';
+  v_item_result JSONB;
+  i INT;
+BEGIN
+  -- Validação de autorização
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Buscar dados do usuário
+  SELECT nivel, last_daily_loot_at INTO v_user_level, v_last_loot
+  FROM public.users
+  WHERE id = p_user_id;
+
+  IF v_user_level IS NULL THEN
+    RAISE EXCEPTION 'Usuário não encontrado';
+  END IF;
+
+  -- Calcular início do dia atual em UTC-3
+  v_today_start := date_trunc('day', NOW() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo';
+
+  -- Verificar se já pegou hoje
+  IF v_last_loot IS NOT NULL AND v_last_loot >= v_today_start THEN
+    RAISE EXCEPTION 'Loot diário já coletado hoje. Tente amanhã!';
+  END IF;
+
+  -- Encontrar o pool apropriado
+  SELECT id INTO v_pool_id
+  FROM public.loot_pools
+  WHERE v_user_level >= level_min AND v_user_level <= level_max
+  LIMIT 1;
+
+  -- Se não encontrou pool, usar o de menor nível
+  IF v_pool_id IS NULL THEN
+    SELECT id INTO v_pool_id
+    FROM public.loot_pools
+    ORDER BY level_min ASC
+    LIMIT 1;
+  END IF;
+
+  IF v_pool_id IS NULL THEN
+    RAISE EXCEPTION 'Nenhum loot pool configurado';
+  END IF;
+
+  -- Calcular peso total do pool
+  SELECT SUM(weight) INTO v_total_weight
+  FROM public.loot_pool_items
+  WHERE pool_id = v_pool_id;
+
+  IF v_total_weight IS NULL OR v_total_weight = 0 THEN
+    RAISE EXCEPTION 'Pool de loot vazio';
+  END IF;
+
+  -- Gerar 15 itens
+  FOR i IN 1..15 LOOP
+    v_item_result := public.generate_single_loot_item(
+      p_user_id,
+      v_pool_id,
+      v_total_weight,
+      v_user_level
+    );
+    
+    v_items := array_append(v_items, v_item_result);
+  END LOOP;
+
+  -- Atualizar timestamp do último loot
+  UPDATE public.users
+  SET last_daily_loot_at = NOW()
+  WHERE id = p_user_id;
+
+  -- Retornar resultado
+  RETURN jsonb_build_object(
+    'success', true,
+    'items', array_to_json(v_items),
+    'total_items', 15,
+    'user_level', v_user_level,
+    'pool_id', v_pool_id,
+    'claimed_at', NOW()
+  );
+END;
+$function$;
+
+
+-- ============================================
+-- FUNÇÃO AUXILIAR: GERAR 1 ITEM DO LOOT
+-- ============================================
+CREATE OR REPLACE FUNCTION public.generate_single_loot_item(
+  p_user_id UUID,
+  p_pool_id INT,
+  p_total_weight INT,
+  p_user_level INT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  v_random INT;
+  v_cumulative INT := 0;
+  v_item RECORD;
+  v_selected_item RECORD;
+  v_item_details RECORD;
+  v_skill_count INT;
+  v_random_skill_id INT;
+BEGIN
+  v_random := floor(random() * p_total_weight) + 1;
+
+  FOR v_item IN
+    SELECT item_type, item_id, weight
+    FROM public.loot_pool_items
+    WHERE pool_id = p_pool_id
+    ORDER BY weight DESC, id ASC
+  LOOP
+    v_cumulative := v_cumulative + v_item.weight;
+    
+    IF v_random <= v_cumulative THEN
+      v_selected_item := v_item;
+      EXIT;
+    END IF;
+  END LOOP;
+
+  IF v_selected_item.item_id IS NULL AND v_selected_item.item_type IS NULL THEN
+    SELECT item_type, item_id INTO v_selected_item
+    FROM public.loot_pool_items
+    WHERE pool_id = p_pool_id
+    ORDER BY weight DESC
+    LIMIT 1;
+  END IF;
+
+  IF v_selected_item.item_type = 'skill_pool' THEN
+    SELECT COUNT(*) INTO v_skill_count
+    FROM public.skills;
+
+    IF v_skill_count = 0 THEN
+      RAISE EXCEPTION 'Nenhuma skill disponível';
+    END IF;
+
+    SELECT id INTO v_random_skill_id
+    FROM public.skills
+    ORDER BY random()
+    LIMIT 1;
+
+    v_selected_item.item_type := 'skill';
+    v_selected_item.item_id := v_random_skill_id;
+  END IF;
+
+  IF v_selected_item.item_type = 'skill' THEN
+    SELECT 
+      id, 
+      name, 
+      xp_skill as xp, 
+      image,
+      NULL as xp_image
+    INTO v_item_details
+    FROM public.skills
+    WHERE id = v_selected_item.item_id;
+    
+    INSERT INTO public.user_skills (user_id, skill_id, quantidade)
+    VALUES (p_user_id, v_selected_item.item_id, 1)
+    ON CONFLICT (user_id, skill_id) 
+    DO UPDATE SET 
+      quantidade = user_skills.quantidade + 1,
+      updated_at = NOW();
+  ELSE
+    SELECT 
+      id, 
+      nome as name, 
+      xp,
+      NULL as image,
+      xp_image
+    INTO v_item_details
+    FROM public.xp_item_definitions
+    WHERE id = v_selected_item.item_id;
+    
+    INSERT INTO public.user_xp_items (user_id, item_id, quantidade)
+    VALUES (p_user_id, v_selected_item.item_id, 1)
+    ON CONFLICT (user_id, item_id) 
+    DO UPDATE SET 
+      quantidade = user_xp_items.quantidade + 1,
+      updated_at = NOW();
+  END IF;
+
+  -- INSERT NA TRANSACTIONS REMOVIDO
+
+  RETURN jsonb_build_object(
+    'item_type', v_selected_item.item_type,
+    'item_id', v_item_details.id,
+    'item_name', v_item_details.name,
+    'item_xp', v_item_details.xp,
+    'item_image', v_item_details.image,
+    'item_xp_image', v_item_details.xp_image
+  );
+END;
+$function$;
+
+
+-- ============================================
+-- FUNÇÃO: VERIFICAR STATUS DO LOOT DIÁRIO
+-- ============================================
+CREATE OR REPLACE FUNCTION public.check_daily_loot_status(p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  v_last_loot TIMESTAMPTZ;
+  v_today_start TIMESTAMPTZ;
+  v_next_available TIMESTAMPTZ;
+  v_can_claim BOOLEAN;
+BEGIN
+  -- Validação
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- Buscar último loot
+  SELECT last_daily_loot_at INTO v_last_loot
+  FROM public.users
+  WHERE id = p_user_id;
+
+  -- Calcular início do dia atual em UTC-3
+  v_today_start := date_trunc('day', NOW() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo';
+
+  -- Verificar se pode pegar
+  v_can_claim := (v_last_loot IS NULL OR v_last_loot < v_today_start);
+
+  -- Calcular próximo disponível
+  IF v_last_loot IS NOT NULL THEN
+    v_next_available := date_trunc('day', v_last_loot AT TIME ZONE 'America/Sao_Paulo' + INTERVAL '1 day') AT TIME ZONE 'America/Sao_Paulo';
+  ELSE
+    v_next_available := NOW(); -- Nunca pegou
+  END IF;
+
+  RETURN jsonb_build_object(
+    'can_claim', v_can_claim,
+    'last_claim_at', v_last_loot,
+    'next_available_at', v_next_available,
+    'current_time', NOW()
+  );
+END;
+$function$;
+
+***
+-- ============================================
+-- LIMPEZA: APAGAR FUNÇÕES E TABELAS ANTIGAS
+-- ============================================
+DROP FUNCTION IF EXISTS obter_torneio_atual(UUID, BOOLEAN);
+DROP FUNCTION IF EXISTS obter_torneio_atual(UUID);
+DROP FUNCTION IF EXISTS registrar_batalha_torneio(UUID, UUID, JSONB);
+DROP FUNCTION IF EXISTS cancelar_inscricao_torneio(UUID);
+DROP FUNCTION IF EXISTS inscrever_torneio(UUID, UUID);
+DROP FUNCTION IF EXISTS trigger_executar_batalha();
+DROP TRIGGER IF EXISTS trigger_batalha_automatica ON torneios;
+
+DROP TABLE IF EXISTS torneios CASCADE;
+DROP TABLE IF EXISTS tipos_torneio CASCADE;
+
+-- ============================================
+-- CRIAR TABELAS
+-- ============================================
+CREATE TABLE public.tipos_torneio (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  descricao TEXT,
+  taxa_inscricao DECIMAL(10, 2) NOT NULL,
+  premio_vencedor DECIMAL(10, 2) NOT NULL,
+  ativo BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE public.torneios (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tipo_torneio_id UUID NOT NULL REFERENCES tipos_torneio(id),
+  jogador1_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  jogador2_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  vencedor_id UUID REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'aguardando' 
+    CHECK (status IN ('aguardando', 'processando', 'finalizado', 'cancelado')),
+  finalizado_em TIMESTAMPTZ,
+  log JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_torneios_status ON torneios(status);
+CREATE INDEX idx_torneios_jogador1 ON torneios(jogador1_id);
+CREATE INDEX idx_torneios_jogador2 ON torneios(jogador2_id);
+
+-- ============================================
+-- INSCREVER NO TORNEIO
+-- ============================================
+CREATE OR REPLACE FUNCTION inscrever_torneio(
+  p_user_id UUID,
+  p_tipo_torneio_id UUID
+)
+RETURNS JSON AS $$
+DECLARE
+  v_torneio_id UUID;
+  v_taxa DECIMAL(10, 2);
+  v_saldo_atual DECIMAL(10, 2);
+BEGIN
+  SELECT taxa_inscricao INTO v_taxa
+  FROM tipos_torneio WHERE id = p_tipo_torneio_id AND ativo = true;
+  
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'message', 'Tipo de torneio não encontrado');
+  END IF;
+  
+  SELECT saldo INTO v_saldo_atual FROM users WHERE id = p_user_id;
+  IF v_saldo_atual < v_taxa THEN
+    RETURN json_build_object('success', false, 'message', 'Saldo insuficiente');
+  END IF;
+  
+  IF EXISTS (
+    SELECT 1 FROM torneios
+    WHERE (jogador1_id = p_user_id OR jogador2_id = p_user_id)
+    AND status IN ('aguardando', 'processando')
+  ) THEN
+    RETURN json_build_object('success', false, 'message', 'Você já está em um torneio');
+  END IF;
+  
+  SELECT id INTO v_torneio_id
+  FROM torneios
+  WHERE tipo_torneio_id = p_tipo_torneio_id 
+  AND status = 'aguardando'
+  AND jogador2_id IS NULL
+  LIMIT 1;
+  
+  UPDATE users SET saldo = saldo - v_taxa WHERE id = p_user_id;
+  
+  IF v_torneio_id IS NULL THEN
+    -- Cria novo torneio
+    INSERT INTO torneios (tipo_torneio_id, jogador1_id)
+    VALUES (p_tipo_torneio_id, p_user_id)
+    RETURNING id INTO v_torneio_id;
+  ELSE
+    -- Segundo jogador entra → Trigger vai processar batalha automaticamente
+    UPDATE torneios 
+    SET jogador2_id = p_user_id
+    WHERE id = v_torneio_id;
+  END IF;
+  
+  RETURN json_build_object('success', true, 'torneio_id', v_torneio_id);
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- CANCELAR INSCRIÇÃO
+-- ============================================
+CREATE OR REPLACE FUNCTION cancelar_inscricao_torneio(p_user_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  v_torneio_id UUID;
+  v_taxa DECIMAL(10, 2);
+  v_jogador2_id UUID;
+BEGIN
+  SELECT t.id, t.jogador2_id, tt.taxa_inscricao 
+  INTO v_torneio_id, v_jogador2_id, v_taxa
+  FROM torneios t
+  JOIN tipos_torneio tt ON tt.id = t.tipo_torneio_id
+  WHERE t.jogador1_id = p_user_id
+  AND t.status = 'aguardando';
+  
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'message', 'Você não está em nenhum torneio');
+  END IF;
+  
+  IF v_jogador2_id IS NOT NULL THEN
+    RETURN json_build_object('success', false, 'message', 'Não pode cancelar, já tem oponente');
+  END IF;
+  
+  DELETE FROM torneios WHERE id = v_torneio_id;
+  UPDATE users SET saldo = saldo + v_taxa WHERE id = p_user_id;
+  
+  RETURN json_build_object('success', true, 'message', 'Inscrição cancelada');
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- REGISTRAR BATALHA (Chamada pela Edge Function)
+-- ============================================
+CREATE OR REPLACE FUNCTION registrar_batalha_torneio(
+  p_torneio_id UUID,
+  p_vencedor_id UUID,
+  p_log JSONB
+)
+RETURNS JSON AS $$
+DECLARE
+  v_premio DECIMAL(10, 2);
+  v_status TEXT;
+BEGIN
+  SELECT tt.premio_vencedor, t.status INTO v_premio, v_status
+  FROM torneios t
+  JOIN tipos_torneio tt ON tt.id = t.tipo_torneio_id
+  WHERE t.id = p_torneio_id;
+  
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'message', 'Torneio não encontrado');
+  END IF;
+  
+  -- Evita registrar duas vezes
+  IF v_status = 'finalizado' THEN
+    RETURN json_build_object('success', false, 'message', 'Torneio já finalizado');
+  END IF;
+  
+  UPDATE torneios
+  SET vencedor_id = p_vencedor_id, 
+      log = p_log, 
+      status = 'finalizado', 
+      finalizado_em = NOW()
+  WHERE id = p_torneio_id AND status = 'processando';
+  
+  -- Credita prêmio apenas se UPDATE foi bem-sucedido
+  IF FOUND THEN
+    UPDATE users SET saldo = saldo + v_premio WHERE id = p_vencedor_id;
+    RETURN json_build_object('success', true, 'premio', v_premio);
+  ELSE
+    RETURN json_build_object('success', false, 'message', 'Torneio não está processando');
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- OBTER TORNEIO ATUAL
+-- ============================================
+CREATE OR REPLACE FUNCTION obter_torneio_atual(
+  p_user_id UUID,
+  p_incluir_finalizados BOOLEAN DEFAULT false
+)
+RETURNS JSON AS $$
+DECLARE
+  v_torneio RECORD;
+  v_oponente_id UUID;
+  v_oponente_nome TEXT;
+  v_oponente_avatar TEXT;
+  v_oponente_nivel INTEGER;
+  v_pode_cancelar BOOLEAN;
+BEGIN
+  -- Busca torneio
+  SELECT t.id, t.status, t.jogador1_id, t.jogador2_id, t.vencedor_id, t.log,
+         tt.nome, tt.premio_vencedor
+  INTO v_torneio
+  FROM torneios t
+  JOIN tipos_torneio tt ON tt.id = t.tipo_torneio_id
+  WHERE (t.jogador1_id = p_user_id OR t.jogador2_id = p_user_id)
+  AND (
+    CASE 
+      WHEN p_incluir_finalizados THEN t.status IN ('aguardando', 'processando', 'finalizado')
+      ELSE t.status IN ('aguardando', 'processando')
+    END
+  )
+  ORDER BY 
+    CASE 
+      WHEN t.status = 'aguardando' THEN 0 
+      WHEN t.status = 'processando' THEN 1
+      ELSE 2 
+    END,
+    t.created_at DESC
+  LIMIT 1;
+  
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'message', 'Nenhum torneio encontrado');
+  END IF;
+  
+  -- Identifica oponente
+  IF v_torneio.jogador1_id = p_user_id THEN
+    v_oponente_id := v_torneio.jogador2_id;
+  ELSE
+    v_oponente_id := v_torneio.jogador1_id;
+  END IF;
+  
+  -- Busca dados do oponente (se existir)
+  IF v_oponente_id IS NOT NULL THEN
+    SELECT nome, avatar, nivel 
+    INTO v_oponente_nome, v_oponente_avatar, v_oponente_nivel
+    FROM users WHERE id = v_oponente_id;
+  END IF;
+  
+  -- Pode cancelar apenas se for jogador1, status aguardando e sem jogador2
+  v_pode_cancelar := (v_torneio.jogador1_id = p_user_id AND 
+                      v_torneio.status = 'aguardando' AND 
+                      v_torneio.jogador2_id IS NULL);
+  
+  RETURN json_build_object(
+    'success', true,
+    'torneio', json_build_object(
+      'id', v_torneio.id,
+      'nome', v_torneio.nome,
+      'status', v_torneio.status,
+      'premio_vencedor', v_torneio.premio_vencedor,
+      'vencedor_id', v_torneio.vencedor_id,
+      'log', v_torneio.log,
+      'pode_cancelar', v_pode_cancelar
+    ),
+    'oponente', CASE 
+      WHEN v_oponente_id IS NOT NULL THEN
+        json_build_object(
+          'id', v_oponente_id,
+          'nome', v_oponente_nome,
+          'avatar', v_oponente_avatar,
+          'nivel', v_oponente_nivel
+        )
+      ELSE NULL
+    END
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- TRIGGER: PROCESSAR BATALHA AUTOMATICAMENTE
+-- ============================================
+CREATE OR REPLACE FUNCTION trigger_executar_batalha()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Só executa quando jogador2 entra
+  IF NEW.jogador2_id IS NOT NULL 
+     AND OLD.jogador2_id IS NULL 
+     AND NEW.status = 'aguardando' THEN
+    
+    -- Muda status para 'processando' para evitar dupla execução
+    NEW.status := 'processando';
+    
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Cria o trigger
+CREATE TRIGGER trigger_batalha_automatica
+  BEFORE UPDATE ON torneios
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_executar_batalha();
+
+-- ============================================
+-- INSERIR TIPO DE TORNEIO
+-- ============================================
+INSERT INTO tipos_torneio (nome, descricao, taxa_inscricao, premio_vencedor)
+VALUES ('Duelo Rápido', 'Batalha 1v1 automática!', 1.00, 1.80)
+ON CONFLICT DO NOTHING;
+
+***
+
+***

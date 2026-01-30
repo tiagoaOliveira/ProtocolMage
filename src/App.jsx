@@ -4,8 +4,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Carteira from './pages/Carteira';
-import Torneio from './pages/Torneio';
+import Duelo from './pages/Duelo';
 import Mercado from './pages/Mercado';
+import AdminPanel from './pages/Adminpanel';
 
 // Componente para proteger rotas
 function PrivateRoute({ children }) {
@@ -36,6 +37,9 @@ function App() {
               </PrivateRoute>
             }
           />
+          
+          <Route path="/admin" element={<AdminPanel />} />
+
           <Route
             path="/carteira"
             element={
@@ -53,10 +57,10 @@ function App() {
             }
           />
           <Route
-            path="/torneio"
+            path="/duelo"
             element={
               <PrivateRoute>
-                <Torneio />
+                <AdminPanel />
               </PrivateRoute>
             }
           />

@@ -5,7 +5,9 @@ const Logview = ({
   logTurnos = [],
   userName = 'Você',
   oponenteName = 'Oponente',
-  onClose
+  onClose,
+  onSkillClick, 
+  availableSkills = [] 
 }) => {
   const [turnoAtual, setTurnoAtual] = useState(0);
 
@@ -21,14 +23,47 @@ const Logview = ({
   }
 
   const inicio = logTurnos[0]?.inicio;
+  const precisaInverter = inicio && 
+    inicio.oponente && 
+    inicio.oponente.nome === userName;
+
+  const logProcessado = precisaInverter ? logTurnos.map(turno => {
+    if (turno.inicio) {
+      return {
+        ...turno,
+        inicio: {
+          user: turno.inicio.oponente,
+          oponente: turno.inicio.user
+        }
+      };
+    }
+    
+    // Inverte também as ações e HP dos turnos
+    return {
+      ...turno,
+      turn: turno.turn,
+      hpUser: turno.hpOponente,
+      hpOponente: turno.hpUser,
+      actions: turno.actions?.map(a => ({
+        ...a,
+        actor: a.actor === 'user' ? 'opponent' : 'user'
+      })) || [],
+      status_effects: turno.status_effects?.map(s => ({
+        ...s,
+        alvo: s.alvo === 'user' ? 'opponent' : 'user'
+      })) || []
+    };
+  }) : logTurnos;
+
+  const inicioProcessado = logProcessado[0]?.inicio;
   const userLabel = userName;
   const oponenteLabel = oponenteName;
 
-  const turno = turnoAtual > 0 ? logTurnos[turnoAtual] : null;
-  const totalTurnos = logTurnos.length - 1;
+  const turno = turnoAtual > 0 ? logProcessado[turnoAtual] : null;
+  const totalTurnos = logProcessado.length - 1;
 
   const getVencedor = () => {
-    const ultimoTurno = logTurnos[logTurnos.length - 1];
+    const ultimoTurno = logProcessado[logProcessado.length - 1];
     if (ultimoTurno.hpUser > 0) return userLabel;
     if (ultimoTurno.hpOponente > 0) return oponenteLabel;
     return "Empate";
@@ -147,22 +182,83 @@ const Logview = ({
         {/* Content com scroll */}
         <div className="battle-log-content">
           {/* Stats Iniciais */}
-          {turnoAtual === 0 && inicio && (
+          {turnoAtual === 0 && inicioProcessado && (
             <div className="battle-log-inicio-box">
               <h3 className="battle-log-subtitle">⚔️ Estatísticas Iniciais</h3>
               <div className="battle-log-stats-grid">
                 <div className="battle-log-stat-block">
                   <div className="battle-log-stat-label">{userLabel}</div>
-                  <div>❤️ HP: {inicio.user.hp}</div>
-                  <div>⚔️ Ataque: {inicio.user.attack}</div>
-                  <div>⭐ Nível: {inicio.user.nivel}</div>
+                  <div>❤️ HP: {inicioProcessado.user.hp}</div>
+                  <div>⚔️ Ataque: {inicioProcessado.user.attack}</div>
+                  <div>⭐ Nível: {inicioProcessado.user.nivel}</div>
+                  
+                  {/* Skills do Usuário */}
+                  {inicioProcessado.user.skills?.length > 0 && (
+                    <div className='skills-iniciais-section'>
+                      <div className='skills-text'>
+                        🎯 Magias Equipadas:
+                      </div>
+                      <div className='skills-iniciais'>
+                        {inicioProcessado.user.skills.map((skillData, idx) => {
+                          // Buscar skill completa do availableSkills pelo nome
+                          const fullSkill = availableSkills.find(s => s.skill?.name === skillData.nome);
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => fullSkill && onSkillClick?.(fullSkill.skill)}
+                              className='skills-log'>
+                              {fullSkill?.skill?.image ? (
+                                <img 
+                                  src={fullSkill.skill.image} 
+                                  alt={skillData.nome}/>
+                              ) : (
+                                <div>
+                                  {skillData.nome?.slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="battle-log-versus">VS</div>
                 <div className="battle-log-stat-block">
                   <div className="battle-log-stat-label">{oponenteLabel}</div>
-                  <div>❤️ HP: {inicio.oponente.hp}</div>
-                  <div>⚔️ Ataque: {inicio.oponente.attack}</div>
-                  <div>⭐ Nível: {inicio.oponente.nivel}</div>
+                  <div>❤️ HP: {inicioProcessado.oponente.hp}</div>
+                  <div>⚔️ Ataque: {inicioProcessado.oponente.attack}</div>
+                  <div>⭐ Nível: {inicioProcessado.oponente.nivel}</div>
+                  
+                  {/* Skills do Oponente */}
+                  {inicioProcessado.oponente.skills?.length > 0 && (
+                    <div className='skills-iniciais-section'>
+                      <div className='skills-text'>
+                        🎯 Magias Equipadas:
+                      </div>
+                      <div className='skills-iniciais'>
+                        {inicioProcessado.oponente.skills.map((skillData, idx) => {
+                          const fullSkill = availableSkills.find(s => s.skill?.name === skillData.nome);
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => fullSkill && onSkillClick?.(fullSkill.skill)}
+                              className='skills-log'>
+                              {fullSkill?.skill?.image ? (
+                                <img 
+                                  src={fullSkill.skill.image} 
+                                  alt={skillData.nome}/>
+                              ) : (
+                                <div>
+                                  {skillData.nome?.slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -203,7 +299,7 @@ const Logview = ({
                   {/* Ações do User */}
                   {getUserActions(turno.actions).length > 0 && (
                     <div className="battle-log-section">
-                      <div className="battle-log-section-title">⚔️ Ações</div>
+                      <div className="battle-log-section-title">⚔️ Ação</div>
                       {getUserActions(turno.actions).map((action, idx) => (
                         <div key={idx} className="battle-log-action-item user">
                           <div className="battle-log-action-detail">
@@ -246,7 +342,7 @@ const Logview = ({
                   {/* Ações do Oponente */}
                   {getOpponentActions(turno.actions).length > 0 && (
                     <div className="battle-log-section">
-                      <div className="battle-log-section-title">⚔️ Ações</div>
+                      <div className="battle-log-section-title">⚔️ Ação</div>
                       {getOpponentActions(turno.actions).map((action, idx) => (
                         <div key={idx} className="battle-log-action-item opponent">
                           <div className="battle-log-action-detail">

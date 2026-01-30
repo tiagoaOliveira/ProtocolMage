@@ -301,16 +301,6 @@
     font-size: 0.95rem;
 }
 
-.badge-vencedor {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-weight: bold;
-    font-size: 0.9rem;
-    margin-top: 0.5rem;
-}
-
 .versus-text {
     font-size: 3rem;
     font-weight: bold;
@@ -396,7 +386,6 @@
     }
 
     .versus-container {
-        grid-template-columns: 1fr;
         gap: 1rem;
     }
 

@@ -1,0 +1,448 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// ============================================
+// LÓGICA DE BATALHA (consolidada)
+// ============================================
+async function simularBatalha(supabase: any, userId: string, oponenteId: string) {
+  // Busca dados dos jogadores
+  const { data: user } = await supabase
+    .from('users')
+    .select('id, nome, nivel, base_hp, base_attack')
+    .eq('id', userId)
+    .single()
+
+  const { data: oponente } = await supabase
+    .from('users')
+    .select('id, nome, nivel, base_hp, base_attack')
+    .eq('id', oponenteId)
+    .single()
+
+  if (!user || !oponente) throw new Error('Jogador não encontrado')
+
+  const calcularStat = (base: number, nivel: number) =>
+    Math.floor(base * (1 + nivel * 0.2))
+
+  // Busca skills dos jogadores
+  const { data: userSkills } = await supabase
+    .from('user_skills')
+    .select('slot, skills(id, name, tipo, duracao, cooldown, alvo, efeito)')
+    .eq('user_id', userId)
+    .lte('slot', 6)
+    .order('slot')
+
+  const { data: opponentSkills } = await supabase
+    .from('user_skills')
+    .select('slot, skills(id, name, tipo, duracao, cooldown, alvo, efeito)')
+    .eq('user_id', oponenteId)
+    .lte('slot', 6)
+    .order('slot')
+
+  const montarFila = (skills: any[]) =>
+    (skills || []).map(s => ({
+      ...s.skills,
+      efeito: typeof s.skills.efeito === 'string'
+        ? JSON.parse(s.skills.efeito)
+        : s.skills.efeito,
+      last_used: -999,
+      uso_unico: s.skills.id === 20,
+      ja_usada: false,
+    }))
+
+  const userQueue = montarFila(userSkills || [])
+  const opponentQueue = montarFila(opponentSkills || [])
+
+  const escolherSkill = (queue: any[], turno: number, index: { value: number }) => {
+    if (queue.length === 0) return null
+    const total = queue.length
+
+    for (let i = 0; i < total; i++) {
+      const idx = (index.value + i) % total
+      const skill = queue[idx]
+
+      if (turno - skill.last_used >= skill.cooldown) {
+        skill.last_used = turno
+        index.value = (idx + 1) % total
+        return skill
+      }
+    }
+
+    index.value = (index.value + 1) % total
+    return null
+  }
+
+  const criarJogador = (u: any) => ({
+    id: u.id,
+    hp: calcularStat(u.base_hp, u.nivel),
+    maxHp: calcularStat(u.base_hp, u.nivel),
+    attack: calcularStat(u.base_attack, u.nivel),
+    baseAttack: calcularStat(u.base_attack, u.nivel),
+    buffs: [] as any[],
+    debuffs: [] as any[],
+    dots: [] as any[],
+  })
+
+  const jogadorA = criarJogador(user)
+  const jogadorB = criarJogador(oponente)
+
+  const logTurnos: any[] = []
+
+  logTurnos.push({
+    inicio: {
+      user: {
+        nome: user.nome,
+        hp: jogadorA.hp,
+        attack: jogadorA.attack,
+        nivel: user.nivel,
+        skills: (userSkills || []).map(s => ({ // ← ADICIONE
+          slot: s.slot,
+          nome: s.skills.name,
+          tipo: s.skills.tipo
+        }))
+      },
+      oponente: {
+        nome: oponente.nome,
+        hp: jogadorB.hp,
+        attack: jogadorB.attack,
+        nivel: oponente.nivel,
+        skills: (opponentSkills || []).map(s => ({ // ← ADICIONE
+          slot: s.slot,
+          nome: s.skills.name,
+          tipo: s.skills.tipo
+        }))
+      },
+    },
+  })
+
+  const causarDano = (atacante: any, defensor: any, danoPercent: number, ignoraDefesa = false) => {
+    let dano = Math.floor((atacante.attack * danoPercent) / 100)
+
+    const armorReductions = defensor.debuffs.filter(d => d.tipo === 'armor_reduction')
+    if (armorReductions.length > 0) {
+      let multiplicador = 1
+      armorReductions.forEach(ar => { multiplicador *= (1 + ar.valor / 100) })
+      dano = Math.floor(dano * multiplicador)
+    }
+
+    if (!ignoraDefesa) {
+      const armorIdx = defensor.buffs.findIndex(b => b.tipo === 'armor')
+      if (armorIdx !== -1) {
+        const armor = defensor.buffs[armorIdx]
+        const reducao = Math.floor((dano * armor.valor) / 100)
+        dano -= reducao
+        defensor.buffs.splice(armorIdx, 1)
+      }
+    }
+
+    const blockIdx = defensor.buffs.findIndex(b => b.tipo === 'block')
+    if (blockIdx !== -1) {
+      defensor.buffs.splice(blockIdx, 1)
+      return { dano: 0, bloqueado: true }
+    }
+
+    const reflectIdx = defensor.buffs.findIndex(b => b.tipo === 'reflect')
+    if (reflectIdx !== -1) {
+      const reflect = defensor.buffs[reflectIdx]
+      const refletido = Math.floor((dano * reflect.valor) / 100)
+      defensor.hp -= (dano - refletido)
+      atacante.hp -= refletido
+      defensor.buffs.splice(reflectIdx, 1)
+      return { dano: dano - refletido, refletido }
+    }
+
+    defensor.hp -= dano
+    return { dano }
+  }
+
+  const processarDOTs = (alvo: any) => {
+    const logs: any[] = []
+    alvo.dots = alvo.dots.filter((dot: any) => {
+      if (dot.turnosRestantes !== undefined) {
+        dot.turnosRestantes--
+        if (dot.turnosRestantes < 0) return false
+      }
+
+      let dano = Math.floor((dot.ataqueBase * dot.dano) / 100)
+
+      const armorReductions = alvo.debuffs.filter(d => d.tipo === 'armor_reduction')
+      if (armorReductions.length > 0) {
+        let multiplicador = 1
+        armorReductions.forEach(ar => { multiplicador *= (1 + ar.valor / 100) })
+        dano = Math.floor(dano * multiplicador)
+      }
+
+      const armor = alvo.buffs.find(b => b.tipo === 'armor')
+      if (armor) {
+        const reducao = Math.floor((dano * armor.valor) / 100)
+        dano -= reducao
+      }
+
+      const blockIdx = alvo.buffs.findIndex(b => b.tipo === 'block')
+      if (blockIdx !== -1) {
+        alvo.buffs.splice(blockIdx, 1)
+        logs.push({ nome: dot.nome, dano: 0, bloqueado: true })
+        return dot.turnosRestantes === undefined || dot.turnosRestantes >= 0
+      }
+
+      const reflectIdx = alvo.buffs.findIndex(b => b.tipo === 'reflect')
+      if (reflectIdx !== -1 && dano > 0) {
+        const reflect = alvo.buffs[reflectIdx]
+        const refletido = Math.floor((dano * reflect.valor) / 100)
+        const danoRecebido = dano - refletido
+        alvo.hp -= danoRecebido
+        alvo.buffs.splice(reflectIdx, 1)
+        logs.push({ nome: dot.nome, dano: danoRecebido, refletido, dano_dot_refletido: refletido })
+        return dot.turnosRestantes === undefined || dot.turnosRestantes >= 0
+      }
+
+      alvo.hp -= dano
+      logs.push({ nome: dot.nome, dano })
+      return dot.turnosRestantes === undefined || dot.turnosRestantes >= 0
+    })
+    return logs
+  }
+
+  const processarDebuffs = (jogador: any) => {
+    jogador.debuffs = jogador.debuffs.filter((debuff: any) => true)
+  }
+
+  const aplicarSkill = (atacante: any, defensor: any, skill: any) => {
+    const efeito = skill.efeito
+    const log: any = { nome: skill.name, skillId: skill.id, tipo: skill.tipo }
+
+    if (skill.tipo === 'dano') {
+      let danoPercent = efeito.dano
+      if (efeito.condicional) {
+        const hpPct = (defensor.hp / defensor.maxHp) * 100
+        if (hpPct < efeito.condicional.vida_abaixo) {
+          danoPercent = efeito.dano + efeito.condicional.dano_extra
+          log.execucao = true
+        }
+      }
+      Object.assign(log, causarDano(atacante, defensor, danoPercent, efeito.ignora_defesa === true))
+
+      if (efeito.debuff_ataque) {
+        const jatem = defensor.debuffs.find(d => d.tipo === 'debuff_ataque_permanente')
+        if (!jatem) {
+          const reducao = Math.floor((defensor.baseAttack * Math.abs(efeito.debuff_ataque.ataque)) / 100)
+          defensor.attack -= reducao
+          defensor.debuffs.push({ tipo: 'debuff_ataque_permanente' })
+          log.debuff_ataque = `-${Math.abs(efeito.debuff_ataque.ataque)}%`
+        }
+      }
+
+      if (efeito.armor_reduction) {
+        const jatem = atacante.debuffs.find(d => d.tipo === 'armor_reduction' && d.self)
+        if (!jatem) {
+          atacante.debuffs.push({ tipo: 'armor_reduction', valor: efeito.armor_reduction, self: true })
+          log.self_debuff = `+${efeito.armor_reduction}% dano recebido permanente`
+        }
+      }
+    }
+
+    if (skill.tipo === 'dot') {
+      const existe = defensor.dots.find((d: any) => d.id === skill.id)
+      if (!existe) {
+        const dotObj: any = {
+          id: skill.id,
+          nome: skill.name,
+          dano: efeito.dano,
+          ataqueBase: atacante.attack,
+        }
+        if (skill.duracao < 99) dotObj.turnosRestantes = skill.duracao + 1
+        defensor.dots.push(dotObj)
+      }
+      const imediato = causarDano(atacante, defensor, efeito.dano)
+      log.dano_inicial = imediato.dano
+      if (imediato.bloqueado) log.bloqueado = true
+      if (imediato.refletido) log.refletido = imediato.refletido
+    }
+
+    if (skill.tipo === 'buff') {
+      const alvo = skill.alvo === 'self' ? atacante : defensor
+      if (efeito.cura) {
+        const cura = Math.floor((alvo.maxHp * efeito.cura) / 100)
+        alvo.hp = Math.min(alvo.hp + cura, alvo.maxHp)
+        log.cura = cura
+      }
+      if (efeito.block) alvo.buffs.push({ tipo: 'block' })
+      if (efeito.reflect) alvo.buffs.push({ tipo: 'reflect', valor: efeito.reflect })
+      if (efeito.armor) {
+        const jatem = alvo.buffs.find(b => b.tipo === 'armor')
+        if (!jatem) alvo.buffs.push({ tipo: 'armor', valor: efeito.armor })
+      }
+      if (efeito.buff_permanente) {
+        const bonus = Math.floor((alvo.baseAttack * efeito.buff_permanente.ataque) / 100)
+        alvo.attack += bonus
+        alvo.baseAttack += bonus
+        log.buff_permanente = `+${efeito.buff_permanente.ataque}%`
+      }
+    }
+
+    if (skill.tipo === 'debuff') {
+      if (efeito.atordoamento) {
+        defensor.debuffs.push({ tipo: 'stun' })
+        log.stun = true
+      }
+      if (efeito.armor_reduction) {
+        const jatem = defensor.debuffs.find(d => d.tipo === 'armor_reduction' && !d.self)
+        if (!jatem) {
+          defensor.debuffs.push({ tipo: 'armor_reduction', valor: efeito.armor_reduction })
+          log.armor_reduction = `+${efeito.armor_reduction}% dano permanente`
+        }
+      }
+    }
+    return log
+  }
+
+  const ataqueBasico = (atacante: any, defensor: any) => {
+    return { tipo: 'basic', ...causarDano(atacante, defensor, 100) }
+  }
+
+  let turno = 1
+  const MAX_TURNOS = 50
+  let userIndex = { value: 0 }
+  let opponentIndex = { value: 0 }
+
+  while (jogadorA.hp > 0 && jogadorB.hp > 0 && turno <= MAX_TURNOS) {
+    const turnoLog: any = { turn: turno, actions: [], status_effects: [] }
+
+    const dotsA = processarDOTs(jogadorA)
+    const dotsB = processarDOTs(jogadorB)
+    if (dotsA.length) turnoLog.status_effects.push({ alvo: 'user', dots: dotsA })
+    if (dotsB.length) turnoLog.status_effects.push({ alvo: 'opponent', dots: dotsB })
+
+    processarDebuffs(jogadorA)
+    processarDebuffs(jogadorB)
+
+    if (jogadorA.hp <= 0 || jogadorB.hp <= 0) {
+      turnoLog.hpUser = jogadorA.hp
+      turnoLog.hpOponente = jogadorB.hp
+      logTurnos.push(turnoLog)
+      break
+    }
+
+    const stunAIdx = jogadorA.debuffs.findIndex(d => d.tipo === 'stun')
+    if (stunAIdx !== -1) {
+      turnoLog.actions.push({ actor: 'user', tipo: 'stunned' })
+      jogadorA.debuffs.splice(stunAIdx, 1)
+    } else {
+      const skill = escolherSkill(userQueue, turno, userIndex)
+      const res = skill ? aplicarSkill(jogadorA, jogadorB, skill) : ataqueBasico(jogadorA, jogadorB)
+      turnoLog.actions.push({ actor: 'user', ...res, hp_restante: jogadorB.hp })
+    }
+
+    jogadorB.buffs = jogadorB.buffs.filter(b => b.tipo !== 'block' && b.tipo !== 'reflect')
+
+    if (jogadorB.hp <= 0) {
+      turnoLog.hpUser = jogadorA.hp
+      turnoLog.hpOponente = jogadorB.hp
+      logTurnos.push(turnoLog)
+      break
+    }
+
+    const stunBIdx = jogadorB.debuffs.findIndex(d => d.tipo === 'stun')
+    if (stunBIdx !== -1) {
+      turnoLog.actions.push({ actor: 'opponent', tipo: 'stunned' })
+      jogadorB.debuffs.splice(stunBIdx, 1)
+    } else {
+      const skill = escolherSkill(opponentQueue, turno, opponentIndex)
+      const res = skill ? aplicarSkill(jogadorB, jogadorA, skill) : ataqueBasico(jogadorB, jogadorA)
+      turnoLog.actions.push({ actor: 'opponent', ...res, hp_restante: jogadorA.hp })
+    }
+
+    jogadorA.buffs = jogadorA.buffs.filter(b => b.tipo !== 'block' && b.tipo !== 'reflect')
+
+    turnoLog.hpUser = jogadorA.hp
+    turnoLog.hpOponente = jogadorB.hp
+    logTurnos.push(turnoLog)
+
+    if (jogadorA.hp <= 0) break
+    turno++
+  }
+
+  const vencedor_id = jogadorA.hp > 0 ? jogadorA.id : jogadorB.id
+
+  await supabase.from('batalhas').insert({
+    user_id: userId,
+    oponente_id: oponenteId,
+    vencedor_id,
+    log_turnos: logTurnos,
+  })
+
+  return { vencedor_id, log_turnos: logTurnos }
+}
+
+// ============================================
+// HANDLER PRINCIPAL
+// ============================================
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
+    const body = await req.json()
+    const { torneio_id } = body
+
+    if (!torneio_id) throw new Error('torneio_id não fornecido')
+
+    const { data: torneio, error: torneioError } = await supabase
+      .from('torneios')
+      .select('*, tipos_torneio(*)')
+      .eq('id', torneio_id)
+      .single()
+
+    if (torneioError || !torneio) throw new Error('Torneio não encontrado')
+
+    if (torneio.status === 'finalizado') {
+      return new Response(
+        JSON.stringify({ success: true, message: 'Torneio já finalizado' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (torneio.status !== 'processando') {
+      throw new Error(`Torneio não está processando`)
+    }
+
+    console.log('Simulando batalha...')
+    const batalha = await simularBatalha(supabase, torneio.jogador1_id, torneio.jogador2_id)
+
+    const { data: registro, error: regError } = await supabase.rpc('registrar_batalha_torneio', {
+      p_torneio_id: torneio_id,
+      p_vencedor_id: batalha.vencedor_id,
+      p_log: batalha.log_turnos
+    })
+
+    if (regError) {
+      await supabase.rpc('cancelar_torneio_com_devolucao', { p_torneio_id: torneio_id })
+      throw regError
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        vencedor_id: batalha.vencedor_id,
+        premio: registro.premio
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    console.error('Erro:', error.message)
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+})

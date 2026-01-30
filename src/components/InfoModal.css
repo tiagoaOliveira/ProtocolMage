@@ -113,6 +113,7 @@
 }
 
 .info-section-content p {
+  text-indent: 0.4rem;
   margin: 0.5rem 0;
 }
 
@@ -133,8 +134,7 @@
   align-items: center;
   justify-content: center;
   gap: 4rem;
-  padding: 1rem 0;
-  margin-bottom: 1rem;
+  padding: 0.5rem 0;
 }
 
 .btn-nav {
@@ -142,8 +142,8 @@
   border: 2px solid rgba(240, 145, 36, 0.5);
   border-radius: 50%;
   color: #f09124;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -182,14 +182,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 
 .chance-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   background: rgba(0, 0, 0, 0.3);
   border-radius: 8px;
   transition: all 0.3s;
@@ -329,6 +328,12 @@
   font-weight: 500;
 }
 
+.contato {
+  color: yellow;
+  text-decoration: underline;
+}
+
+
 /* Responsividade */
 @media (max-width: 768px) {
   .info-modal-content {
@@ -349,7 +354,7 @@
   }
 
   .level-range {
-    font-size: 1.25rem;
+    font-size: 1rem;
   }
 
   .chance-item {
@@ -392,6 +397,6 @@
   }
 
   .chance-item-name {
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
 }

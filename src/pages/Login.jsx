@@ -6,6 +6,7 @@ import './Login.css';
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
@@ -20,6 +21,13 @@ const Login = () => {
 
         try {
             if (isSignUp) {
+                // Validação da confirmação de senha
+                if (password !== confirmPassword) {
+                    setError('As senhas não coincidem');
+                    setLoading(false);
+                    return;
+                }
+                
                 await signUp(email, password, nome);
                 setError('Cadastro realizado! Verifique seu e-mail para confirmar.');
             } else {
@@ -43,9 +51,6 @@ const Login = () => {
         <div className="login-container">
             <div className="login-box">
                 <h1 className="login-title">{isSignUp ? 'Criar Conta' : 'Bem-vindo'}</h1>
-                <p className="login-subtitle">
-                    {isSignUp ? 'Cadastre-se para começar' : 'Faça login para continuar'}
-                </p>
 
                 {isSignUp && (
                     <div className="form-group">
@@ -55,7 +60,7 @@ const Login = () => {
                             type="text"
                             value={nome}
                             onChange={(e) => setNome(e.target.value)}
-                            placeholder="Seu nome"
+                            placeholder="Aparecerá para outros jogadores"
                         />
                     </div>
                 )}
@@ -87,6 +92,21 @@ const Login = () => {
                         />
                     </div>
 
+                    {isSignUp && (
+                        <div className="form-group">
+                            <label htmlFor="confirmPassword">Confirmar Senha</label>
+                            <input
+                                id="confirmPassword"
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                placeholder="••••••••"
+                                disabled={loading}
+                            />
+                        </div>
+                    )}
+
                     {error && <div className="error-message">{error}</div>}
 
                     <button
@@ -101,6 +121,7 @@ const Login = () => {
                         onClick={() => {
                             setIsSignUp(!isSignUp);
                             setError('');
+                            setConfirmPassword('');
                         }}
                         className="toggle-button"
                         type="button"

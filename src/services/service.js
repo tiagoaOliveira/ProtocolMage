@@ -524,107 +524,6 @@ export const getUserTransactions = async (userId, limit = 50) => {
   return data;
 };
 
-// ============================================
-// SISTEMA DE BATALHA
-// ============================================
-export const iniciarBatalha = async (userId, oponenteId) => {
-  try {
-    const response = await supabase.functions.invoke('battle-simulate', {
-      body: { user_id: userId, oponente_id: oponenteId }
-    });
-
-    if (response.error) throw response.error;
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao iniciar batalha:', error);
-    throw error;
-  }
-};
-
-export const getBatalhasUsuario = async (userId, limit = 10) => {
-  try {
-    const { data, error } = await supabase
-      .from('batalhas')
-      .select(`
-        id,
-        created_at,
-        vencedor_id,
-        user:user_id(id, username, nivel),
-        oponente:oponente_id(id, username, nivel)
-      `)
-      .or(`user_id.eq.${userId},oponente_id.eq.${userId}`)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Erro ao buscar batalhas:', error);
-    throw error;
-  }
-};
-
-export const getBatalhaDetalhes = async (batalhaId) => {
-  try {
-    const { data, error } = await supabase
-      .from('batalhas')
-      .select(`
-        *,
-        user:user_id(id, username, nivel),
-        oponente:oponente_id(id, username, nivel)
-      `)
-      .eq('id', batalhaId)
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Erro ao buscar detalhes da batalha:', error);
-    throw error;
-  }
-};
-
-export const getRanking = async (limit = 50) => {
-  try {
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('id, nome, nivel')
-      .limit(limit);
-
-    if (error) {
-      console.error('Erro ao buscar usuários:', error);
-      throw error;
-    }
-
-    if (!users || users.length === 0) {
-      return [];
-    }
-
-    const usersComVitorias = await Promise.all(
-      users.map(async (user) => {
-        const { count } = await supabase
-          .from('batalhas')
-          .select('id', { count: 'exact', head: true })
-          .eq('vencedor_id', user.id);
-
-        return { 
-          ...user, 
-          vitorias: count || 0,
-          username: user.nome || 'Sem nome'
-        };
-      })
-    );
-
-    return usersComVitorias.sort((a, b) => {
-      if (b.vitorias !== a.vitorias) return b.vitorias - a.vitorias;
-      return (b.nivel || 1) - (a.nivel || 1);
-    });
-  } catch (error) {
-    console.error('Erro ao buscar ranking:', error);
-    throw error;
-  }
-};
-
 export const getSkillsEquipadas = async (userId) => {
   try {
     const { data, error } = await supabase
@@ -666,9 +565,5 @@ export default {
   cancelMarketplaceListing,
   getUserListings,
   getUserTransactions,
-  iniciarBatalha,
-  getBatalhasUsuario,
-  getBatalhaDetalhes,
-  getRanking,
   getSkillsEquipadas
 };

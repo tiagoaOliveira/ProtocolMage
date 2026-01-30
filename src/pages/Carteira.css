@@ -12,7 +12,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4); /* ajuste aqui */
+    background: rgba(0, 0, 0, 0.4);
 }
 
 .carteira-content {
@@ -42,6 +42,8 @@
     text-align: center;
     color: white;
     margin: auto;
+    max-height: 80vh;
+    overflow-y: auto;
 }
 
 .carteira-card h2 {
@@ -50,12 +52,15 @@
 }
 
 .carteira-warning {
-    padding-bottom: 1rem;
+    display: block;
+    padding-bottom: 0.5rem;
+    font-size: 0.85rem;
+    opacity: 0.9;
 }
 
 .saldo {
     font-size: 1.4rem;
-    margin: 1rem 0;
+    margin: 1.5rem 0;
 }
 
 .saldo span {
@@ -63,25 +68,20 @@
     font-weight: bold;
 }
 
-/* Input */
-.carteira-input {
-    width: 100%;
-    padding: 0.8rem;
-    border-radius: 10px;
-    border: none;
-    outline: none;
-    font-size: 1rem;
-    margin-bottom: 1.5rem;
-    background-color: white;
+/* Botões de Transação */
+.botoes-transacao {
+    display: flex;
+    gap: 1rem;
+    margin: 1.5rem 0;
 }
 
-/* Botão Depositar */
-.depositar-btn {
+.depositar-btn,
+.sacar-btn {
+    flex: 1;
     background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
     border: none;
     border-radius: 50px;
     padding: 0.9rem;
-    width: 100%;
     font-size: 1.1rem;
     font-weight: bold;
     color: white;
@@ -90,11 +90,232 @@
     transition: all 0.3s ease;
 }
 
-.depositar-btn:hover {
+.sacar-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.5);
+}
+
+.depositar-btn:hover,
+.sacar-btn:hover {
     transform: scale(1.05);
+}
+
+.depositar-btn:hover {
     box-shadow: 0 15px 45px rgba(251, 191, 36, 0.7);
 }
 
-.depositar-btn:active {
+.sacar-btn:hover {
+    box-shadow: 0 15px 45px rgba(239, 68, 68, 0.7);
+}
+
+.depositar-btn:active,
+.sacar-btn:active {
     transform: scale(0.95);
+}
+
+/* Transação Pendente */
+.transacao-pendente {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.transacao-pendente p {
+    margin: 0.5rem 0;
+    font-size: 1rem;
+}
+
+.aviso-processamento {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+/* Histórico */
+.historico {
+    margin-top: 2rem;
+    text-align: left;
+}
+
+.historico h3 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.historico-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.historico-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.status-badge.pendente {
+    background: #f59e0b;
+    color: white;
+}
+
+.status-badge.processando {
+    background: #3b82f6;
+    color: white;
+}
+
+.status-badge.aprovado {
+    background: #10b981;
+    color: white;
+}
+
+.status-badge.negado {
+    background: #ef4444;
+    color: white;
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.modal-content {
+    background: linear-gradient(to right, rgb(134, 149, 194), rgb(53, 89, 181));
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content h2 {
+    color: white;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    color: white;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    background-color: white;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.btn-confirmar,
+.btn-cancelar {
+    flex: 1;
+    padding: 0.9rem;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-confirmar {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.5);
+}
+
+.btn-confirmar:hover {
+    transform: scale(1.05);
+    box-shadow: 0 15px 45px rgba(16, 185, 129, 0.7);
+}
+
+.btn-cancelar {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    color: white;
+    box-shadow: 0 10px 30px rgba(107, 114, 128, 0.5);
+}
+
+.btn-cancelar:hover {
+    transform: scale(1.05);
+    box-shadow: 0 15px 45px rgba(107, 114, 128, 0.7);
+}
+
+.btn-confirmar:active,
+.btn-cancelar:active {
+    transform: scale(0.95);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .carteira-card {
+        width: 90%;
+        padding: 2rem;
+    }
+
+    .modal-content {
+        padding: 1.5rem;
+    }
+
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .botoes-transacao {
+        flex-direction: column;
+    }
 }

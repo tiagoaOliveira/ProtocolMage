@@ -47,9 +47,9 @@ const Nav = () => {
             </NavLink>
 
             <NavLink
-                to="/torneio"
+                to="/duelo"
                 className={({ isActive }) => (isActive ? 'nav3 active' : 'nav3')}>
-                <div className='nav-icons'><Crown />Torneio</div>
+                <div className='nav-icons'><Crown />Duelos</div>
             </NavLink>
         </div>
     )

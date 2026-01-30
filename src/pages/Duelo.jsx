@@ -8,13 +8,15 @@ import {
   cancelarInscricaoTorneio,
   listarTiposTorneio,
   processarTorneio,
-  obterHistoricoBatalhas
+  obterHistoricoBatalhas,
+  getUserSkills
 } from '../services/service';
 import Header from '../components/Header';
 import Nav from '../components/Nav';
 import Logview from '../components/Logview';
 import HistoricoSimples from '../components/HistoricoSimples';
-import './Torneio.css';
+import './Duelo.css';
+import '../components/Character.css'; // Importar CSS do modal de skill
 import Toast, { useToast } from '../components/Toast';
 
 const Torneio = () => {
@@ -36,6 +38,10 @@ const Torneio = () => {
   const [historicoBatalhas, setHistoricoBatalhas] = useState([]);
   const [logSelecionado, setLogSelecionado] = useState(null);
   const [oponenteSelecionado, setOponenteSelecionado] = useState(null);
+
+  // Estados para skills
+  const [availableSkills, setAvailableSkills] = useState([]);
+  const [skillDetailModal, setSkillDetailModal] = useState({ open: false, skill: null });
 
   const fetchTorneioData = async (silencioso = false) => {
     try {
@@ -74,13 +80,15 @@ const Torneio = () => {
     const fetchData = async () => {
       if (!user) return;
       try {
-        const [userDataResult, tiposResult] = await Promise.all([
+        const [userDataResult, tiposResult, skillsResult] = await Promise.all([
           getUserById(user.id),
-          listarTiposTorneio()
+          listarTiposTorneio(),
+          getUserSkills(user.id)
         ]);
 
         setUserData(userDataResult);
         setTiposTorneio(tiposResult);
+        setAvailableSkills(skillsResult || []);
 
         await fetchTorneioData(true);
       } catch (error) {
@@ -115,6 +123,31 @@ const Torneio = () => {
 
     return () => clearInterval(interval);
   }, [torneioData, batalhando]);
+
+  useEffect(() => {
+    if (!torneioData || torneioData.torneio.status !== 'aguardando') {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      const result = await obterTorneioAtual(user.id, false);
+      if (result.success && result.torneio.status === 'processando') {
+        setBatalhando(true);
+        setTorneioData(result);
+
+        // Processa a batalha
+        try {
+          await processarTorneio(result.torneio.id);
+        } catch (error) {
+          console.error('Erro ao processar torneio:', error);
+          showToast('Erro ao processar batalha', 'error');
+          setBatalhando(false);
+        }
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [torneioData, user.id]);
 
   const handleInscrever = async (tipoTorneioId) => {
     try {
@@ -228,7 +261,7 @@ const Torneio = () => {
         {!torneioData && !mostrarResultado && (
           <>
             <div className="torneios-header">
-              <h1>Torneios 1 Contra 1
+              <h1>Duelos 1 Contra 1
               </h1>
               <button onClick={handleAbrirHistorico} className="btn-historico">
                 📜
@@ -292,9 +325,6 @@ const Torneio = () => {
                 <div className="player-avatar-big">{getAvatarDisplay(userData.avatar)}</div>
                 <div className="player-name">{userData.nome}</div>
                 <div className="player-level">Nível {userData.nivel}</div>
-                {torneioData.torneio.vencedor_id === user.id && (
-                  <div className="badge-vencedor">🏆 VENCEDOR</div>
-                )}
               </div>
               <div className="versus-text">VS</div>
 
@@ -302,9 +332,6 @@ const Torneio = () => {
                 <div className="player-avatar-big">{getAvatarDisplay(torneioData.oponente.avatar)}</div>
                 <div className="player-name">{torneioData.oponente.nome}</div>
                 <div className="player-level">Nível {torneioData.oponente.nivel}</div>
-                {torneioData.torneio.vencedor_id === torneioData.oponente.id && (
-                  <div className="badge-vencedor">🏆 VENCEDOR</div>
-                )}
               </div>
             </div>
 
@@ -343,6 +370,8 @@ const Torneio = () => {
           userName={userData.nome}
           oponenteName={oponenteSelecionado?.nome || torneioData.oponente?.nome || 'Oponente'}
           onClose={handleFecharLog}
+          onSkillClick={(skill) => setSkillDetailModal({ open: true, skill })}
+          availableSkills={availableSkills}
         />
       )}
 
@@ -353,6 +382,31 @@ const Torneio = () => {
           onClose={() => setShowHistorico(false)}
           onVerLog={handleVerLogHistorico}
         />
+      )}
+
+      {/* Modal de Detalhes da Skill */}
+      {skillDetailModal.open && skillDetailModal.skill && (
+        <div className="skill-detail-overlay" onClick={() => setSkillDetailModal({ open: false, skill: null })}>
+          <div className="skill-detail-container" onClick={(e) => e.stopPropagation()}>
+            <div className="skill-detail-header">
+              <h3 className="skill-detail-name">{skillDetailModal.skill.name}</h3>
+            </div>
+
+            <div className="skill-detail-description-box">
+              <p className="skill-detail-description-text">
+                {skillDetailModal.skill.descricao || 'Sem descrição disponível'}
+              </p>
+            </div>
+
+            {skillDetailModal.skill.cooldown && (
+              <div className="skill-detail-cooldown-badge">
+                <span className="skill-detail-cooldown-text">
+                  ⏱️ Recarga: {skillDetailModal.skill.cooldown}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       <Toast toasts={toasts} onRemove={removeToast} />

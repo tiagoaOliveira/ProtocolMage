@@ -112,7 +112,7 @@ export default function CharacterModal({
     );
 
     setTempBuild(skillsWithDetails);
-    showToast(`Build "${build.nome}" carregada na área temporária`, "info");
+    showToast(`Build "${build.nome}" carregada.`, "info");
   };
 
   const handleDeleteBuild = async (buildId) => {
@@ -442,9 +442,9 @@ export default function CharacterModal({
                   </button>
                 </div>
 
-                {/* Skills Disponíveis */}
+                {/* Magias Disponíveis */}
                 <div className="build-section">
-                  <h3>✨ Skills Disponíveis</h3>
+                  <h3>✨ Magias Disponíveis</h3>
                   <div className="build-skills-grid">
                     {availableSkills.map((userSkill) => (
                       <div key={userSkill.id} className="build-skill-item">

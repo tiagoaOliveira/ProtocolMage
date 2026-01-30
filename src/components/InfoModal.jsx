@@ -39,12 +39,12 @@ export default function InfoModal({ isOpen, onClose }) {
   ];
 
   const items = [
-    { name: "Frasco iniciante", color: "#4caf50"},
-    { name: "Frascos iniciantes ", color: "#2196f3"},
-    { name: "Frasco Concentrado", color: "#9c27b0"},
-    { name: "Frasco da Evolução", color: "#ff9800"},
-    { name: "Frasco do Despertar", color: "#f44336"},
-    { name: "Magias", color: "#ffd700"}
+    { name: "Frasco iniciante", color: "#4caf50" },
+    { name: "Frascos iniciantes ", color: "#2196f3" },
+    { name: "Frasco Concentrado", color: "#9c27b0" },
+    { name: "Frasco da Evolução", color: "#ff9800" },
+    { name: "Frasco do Despertar", color: "#f44336" },
+    { name: "Magias", color: "#ffd700" }
   ];
 
   const currentData = levelRanges[currentRange];
@@ -72,7 +72,7 @@ export default function InfoModal({ isOpen, onClose }) {
         <div className="info-modal-body">
           {/* Seção: Sobre o Projeto */}
           <div className="info-section">
-            <button 
+            <button
               className="info-section-header"
               onClick={() => toggleSection('about')}
             >
@@ -82,15 +82,34 @@ export default function InfoModal({ isOpen, onClose }) {
             {expandedSection === 'about' && (
               <div className="info-section-content">
                 <p>Nada de Pay To Win, nada de indicados só para criadores de conteúdos ganharem, nem horas em frente ao pc para ganhar centavos.</p>
-                <p>Minha ideia com esse projeto é ser algo simples, que não tome tempo, talvez como forma de investimento/passatempo.</p>
-                <p>Não tem a pretensão de ser um Ragnarok ou Axie Infinity, apenas um farm fácil, torneios rápidos, preços acessíveis...</p>
+                <p>Minha ideia com esse projeto é ser algo simples, que não tome tempo. Farm fácil, torneios rápidos, preços acessíveis.</p>
+                <p>O "farm" é gratuito, e tudo pode ser listado no mercado para vender para outros jogadores. Farme frascos de experiências para subir de nível
+                  (máximo 60) e, talvez, conseguir habilidades para poder batalhar nos duelos pvp. </p>
+              </div>
+            )}
+          </div>
+
+          {/* Seção: Duelos e Batalhas*/}
+          <div className="info-section">
+            <button
+              className="info-section-header"
+              onClick={() => toggleSection('howto')}
+            >
+              <span>Funcionamento das batalhas</span>
+              {expandedSection === 'howto' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </button>
+            {expandedSection === 'howto' && (
+              <div className="info-section-content">
+                <p> As batalhas são automáticas. Cada turno um jogador usa uma habilidade previamente equipada (se não houver nenhuma disponível o usuário realiza um auto ataque).</p>
+                <p>A escolha de quem ataca primeiro é aleatória (50%), em builds bem pensadas quem ataca primeiro pode ter vantagem.</p>
+                <p>Seu Nível influencia vida e dano de ataque, o que pode ser decisivo nas batalhas, pois magias usam dano de ataque como base para infligir dano ao oponente.</p>
               </div>
             )}
           </div>
 
           {/* Seção: Probabilidades de Loot */}
           <div className="info-section">
-            <button 
+            <button
               className="info-section-header"
               onClick={() => toggleSection('chances')}
             >
@@ -117,7 +136,7 @@ export default function InfoModal({ isOpen, onClose }) {
                 <div className="chances-list">
                   {items.map((item, index) => {
                     const chance = currentData.chances[index];
-                    
+
                     return (
                       <div key={index} className="chance-item">
                         <div className="chance-item-info">
@@ -126,9 +145,9 @@ export default function InfoModal({ isOpen, onClose }) {
 
                         <div className="chance-item-percentage">
                           <div className="chance-bar-container">
-                            <div 
+                            <div
                               className="chance-bar-fill"
-                              style={{ 
+                              style={{
                                 width: `${chance}%`,
                                 backgroundColor: item.color
                               }}
@@ -165,16 +184,21 @@ export default function InfoModal({ isOpen, onClose }) {
 
           {/* Seção: Como Jogar - Exemplo de nova seção */}
           <div className="info-section">
-            <button 
+            <button
               className="info-section-header"
-              onClick={() => toggleSection('howto')}
+              onClick={() => toggleSection('contato')}
             >
-              <span>Como Jogar</span>
-              {expandedSection === 'howto' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              <span>Contato</span>
+              {expandedSection === 'contato' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </button>
-            {expandedSection === 'howto' && (
+            {expandedSection === 'contato' && (
               <div className="info-section-content">
-                <p>Instruções de como jogar virão aqui...</p>
+                <p>Telegram: <a className="contato" href="https://t.me/+0R6rVBsv6IliZDQx"
+                  target="_blank" rel="noopener noreferrer">Entrar no grupo.</a></p>
+                <p>E-mail: mageprotocol.jogo@gmail.com</p>
+
+
+
               </div>
             )}
           </div>
