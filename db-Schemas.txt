@@ -2220,5 +2220,501 @@ VALUES ('Duelo Rápido', 'Batalha 1v1 automática!', 1.00, 1.80)
 ON CONFLICT DO NOTHING;
 
 ***
+-- Tabela para armazenar requisições de transações
+CREATE TABLE public.transacoes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN ('deposito', 'saque')),
+  valor DECIMAL(10, 2) NOT NULL CHECK (valor >= 5.00),
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'processando', 'aprovado', 'negado', 'cancelado')),
+  
+  -- Dados bancários
+  banco TEXT NOT NULL,
+  agencia TEXT NOT NULL,
+  conta TEXT NOT NULL,
+  tipo_conta TEXT NOT NULL CHECK (tipo_conta IN ('corrente', 'poupanca')),
+  cpf TEXT NOT NULL,
+  nome_titular TEXT NOT NULL,
+  
+  -- Comprovante (para depósitos)
+  comprovante_url TEXT,
+  
+  -- Metadados
+  motivo_negacao TEXT,
+  processado_por UUID REFERENCES public.users(id),
+  processado_em TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índices para performance
+CREATE INDEX idx_transacoes_user_id ON public.transacoes(user_id);
+CREATE INDEX idx_transacoes_status ON public.transacoes(status);
+CREATE INDEX idx_transacoes_tipo ON public.transacoes(tipo);
+
+-- RLS
+ALTER TABLE public.transacoes ENABLE ROW LEVEL SECURITY;
+
+-- Usuários só podem ver suas próprias transações
+CREATE POLICY "transacoes_select_own" ON public.transacoes
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Usuários só podem inserir suas próprias transações
+CREATE POLICY "transacoes_insert_own" ON public.transacoes
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id AND status = 'pendente');
+
+-- Tabela para armazenar admins
+CREATE TABLE public.admins (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
+
+-- Apenas admins podem ver admins
+CREATE POLICY "admins_select_admin_only" ON public.admins
+  FOR SELECT
+  USING (auth.uid() IN (SELECT user_id FROM public.admins));
+
+-- Função para verificar se usuário é admin
+CREATE OR REPLACE FUNCTION public.is_admin(user_uuid UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.admins WHERE user_id = user_uuid
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Policy para admins verem todas as transações
+CREATE POLICY "transacoes_select_admin" ON public.transacoes
+  FOR SELECT
+  USING (public.is_admin(auth.uid()));
+
+-- Policy para admins atualizarem transações
+CREATE POLICY "transacoes_update_admin" ON public.transacoes
+  FOR UPDATE
+  USING (public.is_admin(auth.uid()))
+  WITH CHECK (public.is_admin(auth.uid()));
+
+
+  -- Função para solicitar depósito
+CREATE OR REPLACE FUNCTION public.solicitar_deposito(
+  p_valor DECIMAL(10, 2),
+  p_banco TEXT,
+  p_agencia TEXT,
+  p_conta TEXT,
+  p_tipo_conta TEXT,
+  p_cpf TEXT,
+  p_nome_titular TEXT,
+  p_comprovante_url TEXT
+)
+RETURNS UUID AS $$
+DECLARE
+  v_transacao_id UUID;
+BEGIN
+  -- Validações
+  IF p_valor < 5.00 THEN
+    RAISE EXCEPTION 'Valor mínimo de depósito é R$ 5,00';
+  END IF;
+  
+  -- Insere a transação
+  INSERT INTO public.transacoes (
+    user_id, tipo, valor, banco, agencia, conta, 
+    tipo_conta, cpf, nome_titular, comprovante_url
+  )
+  VALUES (
+    auth.uid(), 'deposito', p_valor, p_banco, p_agencia, p_conta,
+    p_tipo_conta, p_cpf, p_nome_titular, p_comprovante_url
+  )
+  RETURNING id INTO v_transacao_id;
+  
+  RETURN v_transacao_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Função para solicitar saque
+CREATE OR REPLACE FUNCTION public.solicitar_saque(
+  p_valor DECIMAL(10, 2),
+  p_banco TEXT,
+  p_agencia TEXT,
+  p_conta TEXT,
+  p_tipo_conta TEXT,
+  p_cpf TEXT,
+  p_nome_titular TEXT
+)
+RETURNS UUID AS $$
+DECLARE
+  v_transacao_id UUID;
+  v_saldo_atual DECIMAL(10, 2);
+  v_deposito_aprovado BOOLEAN;
+  v_dados_bancarios_match BOOLEAN;
+BEGIN
+  -- Verifica saldo
+  SELECT saldo INTO v_saldo_atual
+  FROM public.users
+  WHERE id = auth.uid();
+  
+  IF v_saldo_atual < p_valor THEN
+    RAISE EXCEPTION 'Saldo insuficiente';
+  END IF;
+  
+  IF p_valor < 5.00 THEN
+    RAISE EXCEPTION 'Valor mínimo de saque é R$ 5,00';
+  END IF;
+  
+  -- Verifica se já teve algum depósito aprovado
+  SELECT EXISTS (
+    SELECT 1 FROM public.transacoes
+    WHERE user_id = auth.uid()
+      AND tipo = 'deposito'
+      AND status = 'aprovado'
+  ) INTO v_deposito_aprovado;
+  
+  IF NOT v_deposito_aprovado THEN
+    RAISE EXCEPTION 'É necessário ter feito ao menos um depósito aprovado antes de sacar';
+  END IF;
+  
+  -- Verifica se os dados bancários coincidem com algum depósito aprovado
+  SELECT EXISTS (
+    SELECT 1 FROM public.transacoes
+    WHERE user_id = auth.uid()
+      AND tipo = 'deposito'
+      AND status = 'aprovado'
+      AND banco = p_banco
+      AND agencia = p_agencia
+      AND conta = p_conta
+      AND cpf = p_cpf
+  ) INTO v_dados_bancarios_match;
+  
+  IF NOT v_dados_bancarios_match THEN
+    RAISE EXCEPTION 'Os dados bancários devem ser os mesmos utilizados no depósito';
+  END IF;
+  
+  -- Insere a solicitação de saque
+  INSERT INTO public.transacoes (
+    user_id, tipo, valor, banco, agencia, conta,
+    tipo_conta, cpf, nome_titular
+  )
+  VALUES (
+    auth.uid(), 'saque', p_valor, p_banco, p_agencia, p_conta,
+    p_tipo_conta, p_cpf, p_nome_titular
+  )
+  RETURNING id INTO v_transacao_id;
+  
+  RETURN v_transacao_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Função para processar transação (ADMIN ONLY)
+CREATE OR REPLACE FUNCTION public.processar_transacao(
+  p_transacao_id UUID,
+  p_aprovar BOOLEAN,
+  p_motivo_negacao TEXT DEFAULT NULL
+)
+RETURNS VOID AS $$
+DECLARE
+  v_transacao RECORD;
+BEGIN
+  -- Verifica se é admin
+  IF NOT public.is_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Apenas administradores podem processar transações';
+  END IF;
+  
+  -- Busca a transação
+  SELECT * INTO v_transacao
+  FROM public.transacoes
+  WHERE id = p_transacao_id;
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Transação não encontrada';
+  END IF;
+  
+  IF v_transacao.status != 'pendente' THEN
+    RAISE EXCEPTION 'Esta transação já foi processada';
+  END IF;
+  
+  IF p_aprovar THEN
+    -- Atualiza status para aprovado
+    UPDATE public.transacoes
+    SET status = 'aprovado',
+        processado_por = auth.uid(),
+        processado_em = NOW(),
+        updated_at = NOW()
+    WHERE id = p_transacao_id;
+    
+    -- Atualiza saldo do usuário
+    IF v_transacao.tipo = 'deposito' THEN
+      UPDATE public.users
+      SET saldo = saldo + v_transacao.valor
+      WHERE id = v_transacao.user_id;
+    ELSE -- saque
+      UPDATE public.users
+      SET saldo = saldo - v_transacao.valor
+      WHERE id = v_transacao.user_id;
+    END IF;
+  ELSE
+    -- Nega a transação
+    UPDATE public.transacoes
+    SET status = 'negado',
+        motivo_negacao = p_motivo_negacao,
+        processado_por = auth.uid(),
+        processado_em = NOW(),
+        updated_at = NOW()
+    WHERE id = p_transacao_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ***
+import Stripe from 'https://esm.sh/stripe@14.1.0?target=deno'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
+  apiVersion: '2023-10-16',
+})
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL') as string
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
+const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') as string
+
+function validarOrigem(req: Request): boolean {
+  const userAgent = req.headers.get('user-agent') || ''
+  if (!userAgent.includes('Stripe')) {
+    console.warn('⚠️ User-Agent suspeito:', userAgent)
+  }
+
+  const signature = req.headers.get('stripe-signature')
+  if (!signature) {
+    console.error('❌ Sem assinatura Stripe')
+    return false
+  }
+
+  return true
+}
+
+Deno.serve(async (req) => {
+  try {
+    // CAMADA 1: Validação de origem
+    if (!validarOrigem(req)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }), 
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const signature = req.headers.get('stripe-signature')!
+    const body = await req.text()
+
+    // CAMADA 2: Validação de assinatura criptográfica (PRINCIPAL)
+    let event: Stripe.Event
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    } catch (err) {
+      console.error('❌ Assinatura inválida:', err.message)
+      return new Response(
+        JSON.stringify({ error: 'Invalid signature' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('✅ Evento autenticado:', event.type, event.id)
+
+    // CAMADA 3: Whitelist de eventos
+    if (event.type !== 'checkout.session.completed') {
+      console.warn('⚠️ Evento ignorado:', event.type)
+      return new Response(
+        JSON.stringify({ received: true }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const session = event.data.object as Stripe.Checkout.Session
+
+    // CAMADA 4: Validar metadados
+    const userId = session.metadata?.userId
+    const valor = parseFloat(session.metadata?.valor || '0')
+
+    if (!userId || !valor || valor < 5) {
+      console.error('❌ Metadados inválidos:', session.metadata)
+      return new Response(
+        JSON.stringify({ error: 'Invalid metadata' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // CAMADA 5: Verificar pagamento confirmado
+    if (session.payment_status !== 'paid') {
+      console.warn('⚠️ Pagamento não confirmado:', session.payment_status)
+      return new Response(
+        JSON.stringify({ received: true, skipped: true }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // CAMADA 6: Prevenir duplicação
+    const { data: existente } = await supabase
+      .from('transacoes')
+      .select('id')
+      .eq('conta', session.id)
+      .maybeSingle()
+
+    if (existente) {
+      console.warn('⚠️ Evento duplicado ignorado:', session.id)
+      return new Response(
+        JSON.stringify({ received: true, duplicate: true }), 
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Criar transação
+    const { data: transacao, error: transacaoError } = await supabase
+      .from('transacoes')
+      .insert({
+        user_id: userId,
+        tipo: 'deposito',
+        valor: valor,
+        status: 'aprovado',
+        banco: 'Stripe',
+        agencia: '-',
+        conta: session.id,
+        nome_titular: session.customer_email || 'Cliente Stripe',
+        processado_em: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (transacaoError) {
+      console.error('❌ Erro ao criar transação:', transacaoError)
+      return new Response(
+        JSON.stringify({ error: 'Database error' }), 
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Atualizar saldo
+    const { error: saldoError } = await supabase.rpc('atualizar_saldo', {
+      p_user_id: userId,
+      p_valor: valor
+    })
+
+    if (saldoError) {
+      console.error('❌ Erro ao atualizar saldo:', saldoError)
+      await supabase
+        .from('transacoes')
+        .update({ 
+          status: 'negado', 
+          motivo_negacao: 'Erro ao processar pagamento' 
+        })
+        .eq('id', transacao.id)
+      
+      return new Response(
+        JSON.stringify({ error: 'Failed to update balance' }), 
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('✅ Depósito processado:', {
+      userId,
+      valor,
+      transacaoId: transacao.id,
+      sessionId: session.id
+    })
+
+    return new Response(
+      JSON.stringify({ received: true, success: true }), 
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  } catch (err) {
+    console.error('❌ Erro crítico:', err)
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }), 
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+})
+
+***
+// supabase/functions/create-checkout-session/index.ts
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import Stripe from 'https://esm.sh/stripe@14.1.0?target=deno'
+
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
+  apiVersion: '2023-10-16',
+})
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const { amount, userId, userEmail } = await req.json()
+
+    // Validação
+    if (!amount || amount < 5) {
+      return new Response(
+        JSON.stringify({ error: 'Valor mínimo é R$ 5,00' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // Criar sessão de checkout
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: 'Depósito na Carteira',
+              description: `Depósito de R$ ${amount.toFixed(2)}`,
+            },
+            unit_amount: Math.round(amount * 100), // Stripe usa centavos
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${req.headers.get('origin')}/carteira?success=true`,
+      cancel_url: `${req.headers.get('origin')}/carteira?canceled=true`,
+      metadata: {
+        userId: userId,
+        tipo: 'deposito',
+        valor: amount.toString(),
+      },
+      customer_email: userEmail,
+    })
+
+    return new Response(
+      JSON.stringify({ url: session.url }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
+  } catch (error) {
+    console.error('Erro ao criar sessão:', error)
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    )
+  }
+})

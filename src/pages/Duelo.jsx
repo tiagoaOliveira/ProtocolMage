@@ -301,7 +301,7 @@ const Torneio = () => {
             {torneioData.torneio.pode_cancelar && (
               <button
                 onClick={handleCancelar}
-                className="btn-cancelar"
+                className="btn-cancelar-duelo"
                 disabled={cancelando}
               >
                 {cancelando ? 'Cancelando...' : 'Cancelar Inscrição'}

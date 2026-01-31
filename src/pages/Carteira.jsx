@@ -7,30 +7,33 @@ import Nav from '../components/Nav';
 import './Carteira.css';
 import BattleLog from '../components/Logview';
 import { supabase } from '../services/supabaseClient';
+import Toast, { useToast } from '../components/Toast';
 
 const Carteira = () => {
   const [mostrarLog, setMostrarLog] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
-  const [tipoTransacao, setTipoTransacao] = useState(''); // 'deposito' ou 'saque'
-  
+  const [tipoTransacao, setTipoTransacao] = useState('');
+  const { toasts, showToast, removeToast } = useToast();
+
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [transacaoPendente, setTransacaoPendente] = useState(null);
   const [historico, setHistorico] = useState([]);
-  
-  // Dados do formulário
-  const [formData, setFormData] = useState({
+  const [historicoExpandido, setHistoricoExpandido] = useState({});
+
+  // Dados do formulário - apenas para saque agora
+  const [formDataSaque, setFormDataSaque] = useState({
     valor: '',
     banco: '',
     agencia: '',
     conta: '',
-    tipo_conta: 'corrente',
-    cpf: '',
-    nome_titular: '',
-    comprovante_url: ''
+    nome_titular: ''
   });
+
+  // Valor do depósito via Stripe
+  const [valorDeposito, setValorDeposito] = useState('');
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -57,13 +60,20 @@ const Carteira = () => {
         .from('transacoes')
         .select('*')
         .eq('user_id', user.id)
-        .in('status', ['pendente', 'processando'])
+        .eq('status', 'pendente')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (data && !error) {
+      if (error) {
+        console.error('Erro ao verificar transação pendente:', error);
+        return;
+      }
+
+      if (data) {
         setTransacaoPendente(data);
+      } else {
+        setTransacaoPendente(null);
       }
     } catch (error) {
       console.error('Erro ao verificar transação pendente:', error);
@@ -98,16 +108,18 @@ const Carteira = () => {
   const abrirModal = (tipo) => {
     setTipoTransacao(tipo);
     setModalAberto(true);
-    setFormData({
-      valor: '',
-      banco: '',
-      agencia: '',
-      conta: '',
-      tipo_conta: 'corrente',
-      cpf: '',
-      nome_titular: '',
-      comprovante_url: ''
-    });
+
+    if (tipo === 'saque') {
+      setFormDataSaque({
+        valor: '',
+        banco: '',
+        agencia: '',
+        conta: '',
+        nome_titular: ''
+      });
+    } else {
+      setValorDeposito('');
+    }
   };
 
   const fecharModal = () => {
@@ -115,59 +127,83 @@ const Carteira = () => {
     setTipoTransacao('');
   };
 
-  const handleSubmit = async (e) => {
+  // Função para criar sessão de checkout do Stripe
+  const handleDepositoStripe = async (e) => {
     e.preventDefault();
 
-    // Validação básica
-    if (parseFloat(formData.valor) < 5) {
-      alert('Valor mínimo é R$ 5,00');
+    if (parseFloat(valorDeposito) < 5) {
+      showToast('Valor mínimo é R$ 5,00', 'error');
       return;
     }
 
     try {
-      if (tipoTransacao === 'deposito') {
-        const { data, error } = await supabase.rpc('solicitar_deposito', {
-          p_valor: parseFloat(formData.valor),
-          p_banco: formData.banco,
-          p_agencia: formData.agencia,
-          p_conta: formData.conta,
-          p_tipo_conta: formData.tipo_conta,
-          p_cpf: formData.cpf,
-          p_nome_titular: formData.nome_titular,
-          p_comprovante_url: formData.comprovante_url
-        });
+      // Chama sua edge function ou API route para criar a sessão
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: {
+          amount: parseFloat(valorDeposito),
+          userId: user.id,
+          userEmail: user.email
+        }
+      });
 
-        if (error) throw error;
-        alert('Solicitação de depósito enviada com sucesso!');
-      } else {
-        const { data, error } = await supabase.rpc('solicitar_saque', {
-          p_valor: parseFloat(formData.valor),
-          p_banco: formData.banco,
-          p_agencia: formData.agencia,
-          p_conta: formData.conta,
-          p_tipo_conta: formData.tipo_conta,
-          p_cpf: formData.cpf,
-          p_nome_titular: formData.nome_titular
-        });
+      if (error) throw error;
 
-        if (error) throw error;
-        alert('Solicitação de saque enviada com sucesso!');
+      // Redireciona para o Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
       }
+    } catch (error) {
+      console.error('Erro ao criar sessão de pagamento:', error);
+      showToast(error.message || 'Erro ao processar depósito', 'error');
+    }
+  };
+
+  const handleSaque = async (e) => {
+    e.preventDefault();
+
+    if (parseFloat(formDataSaque.valor) < 5) {
+      showToast('Valor mínimo é R$ 5,00', 'error');
+      return;
+    }
+
+    if (!formDataSaque.banco || !formDataSaque.agencia || !formDataSaque.conta || !formDataSaque.nome_titular) {
+      showToast('Preencha todos os campos', 'error');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('solicitar_saque', {
+        p_valor: parseFloat(formDataSaque.valor),
+        p_banco: formDataSaque.banco,
+        p_agencia: formDataSaque.agencia,
+        p_conta: formDataSaque.conta,
+        p_nome_titular: formDataSaque.nome_titular
+      });
+
+      if (error) throw error;
+      showToast('Solicitação de saque enviada com sucesso!', 'success');
 
       fecharModal();
       await verificarTransacaoPendente();
       await carregarHistorico();
     } catch (error) {
-      console.error('Erro ao processar transação:', error);
-      alert(error.message || 'Erro ao processar transação');
+      console.error('Erro ao processar saque:', error);
+      showToast(error.message || 'Erro ao processar saque', 'error');
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormDataSaque(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const toggleHistoricoItem = (id) => {
+    setHistoricoExpandido(prev => ({
+      ...prev,
+      [id]: !prev[id]
     }));
   };
 
@@ -201,6 +237,7 @@ const Carteira = () => {
             <Nav />
           </div>
         </main>
+        <Toast toasts={toasts} onRemove={removeToast} />
       </div>
     );
   }
@@ -212,7 +249,7 @@ const Carteira = () => {
       <main className="carteira-content">
         <div className="carteira-card">
           <h2>💰 Carteira</h2>
-          <span className='carteira-warning'>Pode levar algumas horas de processamento.</span>
+          <span> Depósito obrigatório antes de realizar saque.</span>
           <span> Saque só pode ser feito na mesma conta de depósito.</span>
           <div className="saldo">
             Saldo: <span>R$ {(userData?.saldo ?? 0).toFixed(2)}</span>
@@ -240,9 +277,21 @@ const Carteira = () => {
               <div className="historico-lista">
                 {historico.map(t => (
                   <div key={t.id} className={`historico-item ${t.status}`}>
-                    <span>{t.tipo === 'deposito' ? '💵' : '💸'} {t.tipo}</span>
-                    <span>R$ {parseFloat(t.valor).toFixed(2)}</span>
-                    <span className={`status-badge ${t.status}`}>{t.status}</span>
+                    <div
+                      className="historico-item-header"
+                      onClick={() => t.status === 'negado' && toggleHistoricoItem(t.id)}
+                      style={{ cursor: t.status === 'negado' ? 'pointer' : 'default' }}
+                    >
+                      <span>{t.tipo === 'deposito' ? '💵' : '💸'} {t.tipo}</span>
+                      <span>R$ {parseFloat(t.valor).toFixed(2)}</span>
+                      <span className={`status-badge ${t.status}`}>{t.status}</span>
+                    </div>
+                    {t.status === 'negado' && historicoExpandido[t.id] && (
+                      <div className="historico-motivo">
+                        <strong>Motivo:</strong>
+                        <p>{t.motivo_negacao || 'Sem motivo informado'}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -255,11 +304,44 @@ const Carteira = () => {
         </div>
       </main>
 
-      {modalAberto && (
+      {/* Modal de Depósito - Stripe */}
+      {modalAberto && tipoTransacao === 'deposito' && (
         <div className="modal-overlay" onClick={fecharModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{tipoTransacao === 'deposito' ? '💵 Depositar' : '💸 Sacar'}</h2>
-            <form onSubmit={handleSubmit}>
+            <h2>💵 Depositar via Stripe</h2>
+            <form onSubmit={handleDepositoStripe}>
+              <div className="form-group">
+                <label>Valor (mín. R$ 5,00)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="5"
+                  value={valorDeposito}
+                  onChange={(e) => setValorDeposito(e.target.value)}
+                  required
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="modal-buttons">
+                <button type="submit" className="btn-confirmar">
+                  Ir para Pagamento
+                </button>
+                <button type="button" className="btn-cancelar" onClick={fecharModal}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Saque */}
+      {modalAberto && tipoTransacao === 'saque' && (
+        <div className="modal-overlay" onClick={fecharModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>💸 Sacar</h2>
+            <form onSubmit={handleSaque}>
               <div className="form-group">
                 <label>Valor (mín. R$ 5,00)</label>
                 <input
@@ -267,7 +349,7 @@ const Carteira = () => {
                   name="valor"
                   step="0.01"
                   min="5"
-                  value={formData.valor}
+                  value={formDataSaque.valor}
                   onChange={handleInputChange}
                   required
                 />
@@ -278,7 +360,7 @@ const Carteira = () => {
                 <input
                   type="text"
                   name="banco"
-                  value={formData.banco}
+                  value={formDataSaque.banco}
                   onChange={handleInputChange}
                   required
                 />
@@ -290,18 +372,18 @@ const Carteira = () => {
                   <input
                     type="text"
                     name="agencia"
-                    value={formData.agencia}
+                    value={formDataSaque.agencia}
                     onChange={handleInputChange}
                     required
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>Conta</label>
+                  <label>Conta ou Chave PIX</label>
                   <input
                     type="text"
                     name="conta"
-                    value={formData.conta}
+                    value={formDataSaque.conta}
                     onChange={handleInputChange}
                     required
                   />
@@ -309,53 +391,15 @@ const Carteira = () => {
               </div>
 
               <div className="form-group">
-                <label>Tipo de Conta</label>
-                <select
-                  name="tipo_conta"
-                  value={formData.tipo_conta}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="corrente">Corrente</option>
-                  <option value="poupanca">Poupança</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>CPF</label>
-                <input
-                  type="text"
-                  name="cpf"
-                  value={formData.cpf}
-                  onChange={handleInputChange}
-                  placeholder="000.000.000-00"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Nome completo que consta no banco</label>
+                <label>Nome do Titular</label>
                 <input
                   type="text"
                   name="nome_titular"
-                  value={formData.nome_titular}
+                  value={formDataSaque.nome_titular}
                   onChange={handleInputChange}
                   required
                 />
               </div>
-
-              {tipoTransacao === 'deposito' && (
-                <div className="form-group">
-                  <label>URL do Comprovante (opcional)</label>
-                  <input
-                    type="url"
-                    name="comprovante_url"
-                    value={formData.comprovante_url}
-                    onChange={handleInputChange}
-                    placeholder="https://..."
-                  />
-                </div>
-              )}
 
               <div className="modal-buttons">
                 <button type="submit" className="btn-confirmar">
@@ -377,6 +421,8 @@ const Carteira = () => {
           onClose={() => setMostrarLog(false)}
         />
       )}
+
+      <Toast toasts={toasts} onRemove={removeToast} />
     </div>
   );
 };

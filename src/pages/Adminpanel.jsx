@@ -2,19 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import Toast, { useToast } from '../components/Toast';
 import './AdminPanel.css';
 
 const AdminPanel = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [transacoes, setTransacoes] = useState([]);
   const [filtro, setFiltro] = useState('pendente');
   const [motivoNegacao, setMotivoNegacao] = useState({});
+  const { toasts, showToast, removeToast } = useToast();
 
   useEffect(() => {
-    verificarAdmin();
+    if (user) {
+      verificarAdmin();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -31,17 +34,14 @@ const AdminPanel = () => {
       if (error) throw error;
       
       if (!data) {
-        // Não é admin, redireciona
-        navigate('/home');
+        navigate('/');
         return;
       }
 
       setIsAdmin(true);
     } catch (error) {
       console.error('Erro ao verificar admin:', error);
-      navigate('/home');
-    } finally {
-      setLoading(false);
+      navigate('/');
     }
   };
 
@@ -70,12 +70,13 @@ const AdminPanel = () => {
       setTransacoes(data || []);
     } catch (error) {
       console.error('Erro ao carregar transações:', error);
+      showToast('Erro ao carregar transações', 'error');
     }
   };
 
   const processarTransacao = async (transacaoId, aprovar) => {
     if (!aprovar && !motivoNegacao[transacaoId]) {
-      alert('Por favor, informe o motivo da negação');
+      showToast('Informe o motivo da negação', 'warning');
       return;
     }
 
@@ -92,10 +93,9 @@ const AdminPanel = () => {
 
       if (error) throw error;
 
-      alert(`Transação ${aprovar ? 'aprovada' : 'negada'} com sucesso!`);
+      showToast(`Transação ${aprovar ? 'aprovada' : 'negada'} com sucesso!`, 'success');
       await carregarTransacoes();
       
-      // Limpa o motivo
       setMotivoNegacao(prev => {
         const novo = { ...prev };
         delete novo[transacaoId];
@@ -103,23 +103,23 @@ const AdminPanel = () => {
       });
     } catch (error) {
       console.error('Erro ao processar transação:', error);
-      alert(error.message || 'Erro ao processar transação');
+      showToast(error.message || 'Erro ao processar transação', 'error');
     }
   };
 
-  if (loading) {
-    return <div className="admin-loading">Verificando permissões...</div>;
-  }
-
-  if (!isAdmin) {
-    return null;
+  if (!user || !isAdmin) {
+    return (
+      <div className="admin-loading">
+        <div>Verificando permissões...</div>
+      </div>
+    );
   }
 
   return (
     <div className="admin-panel">
       <div className="admin-header">
         <h1>🛡️ Painel Administrativo</h1>
-        <button onClick={() => navigate('/home')} className="btn-voltar">
+        <button onClick={() => navigate('/')} className="btn-voltar">
           Voltar ao Site
         </button>
       </div>
@@ -130,12 +130,6 @@ const AdminPanel = () => {
           onClick={() => setFiltro('pendente')}
         >
           Pendentes
-        </button>
-        <button
-          className={filtro === 'processando' ? 'active' : ''}
-          onClick={() => setFiltro('processando')}
-        >
-          Processando
         </button>
         <button
           className={filtro === 'aprovado' ? 'active' : ''}
@@ -155,25 +149,6 @@ const AdminPanel = () => {
         >
           Todas
         </button>
-      </div>
-
-      <div className="admin-stats">
-        <div className="stat-card">
-          <h3>Pendentes</h3>
-          <p>{transacoes.filter(t => t.status === 'pendente').length}</p>
-        </div>
-        <div className="stat-card">
-          <h3>Processando</h3>
-          <p>{transacoes.filter(t => t.status === 'processando').length}</p>
-        </div>
-        <div className="stat-card">
-          <h3>Total Hoje</h3>
-          <p>{transacoes.filter(t => {
-            const hoje = new Date().toDateString();
-            const transData = new Date(t.created_at).toDateString();
-            return hoje === transData;
-          }).length}</p>
-        </div>
       </div>
 
       <div className="transacoes-lista">
@@ -219,7 +194,6 @@ const AdminPanel = () => {
               </div>
 
               <div className="transacao-dados-bancarios">
-                <h4>Dados Bancários</h4>
                 <div className="info-row">
                   <span className="label">Banco:</span>
                   <span className="value">{transacao.banco}</span>
@@ -229,25 +203,13 @@ const AdminPanel = () => {
                   <span className="value">{transacao.agencia}</span>
                 </div>
                 <div className="info-row">
-                  <span className="label">Conta:</span>
-                  <span className="value">{transacao.conta} ({transacao.tipo_conta})</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">CPF:</span>
-                  <span className="value">{transacao.cpf}</span>
+                  <span className="label">Conta/Pix:</span>
+                  <span className="value">{transacao.conta}</span>
                 </div>
                 <div className="info-row">
                   <span className="label">Titular:</span>
                   <span className="value">{transacao.nome_titular}</span>
                 </div>
-                {transacao.comprovante_url && (
-                  <div className="info-row">
-                    <span className="label">Comprovante:</span>
-                    <a href={transacao.comprovante_url} target="_blank" rel="noopener noreferrer" className="link-comprovante">
-                      Ver Comprovante
-                    </a>
-                  </div>
-                )}
               </div>
 
               {transacao.motivo_negacao && (
@@ -260,7 +222,7 @@ const AdminPanel = () => {
               {transacao.status === 'pendente' && (
                 <div className="transacao-acoes">
                   <textarea
-                    placeholder="Motivo da negação (opcional se aprovar)"
+                    placeholder="Motivo da negação (obrigatório se negar)"
                     value={motivoNegacao[transacao.id] || ''}
                     onChange={(e) => setMotivoNegacao(prev => ({
                       ...prev,
@@ -296,6 +258,8 @@ const AdminPanel = () => {
           ))
         )}
       </div>
+
+      <Toast toasts={toasts} onRemove={removeToast} />
     </div>
   );
 };

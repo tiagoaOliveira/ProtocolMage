@@ -107,13 +107,31 @@ export default function InfoModal({ isOpen, onClose }) {
             )}
           </div>
 
+          {/* Seção: Duelos e Batalhas*/}
+          <div className="info-section">
+            <button
+              className="info-section-header"
+              onClick={() => toggleSection('carteira')}
+            >
+              <span>Carteira</span>
+              {expandedSection === 'carteira' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </button>
+            {expandedSection === 'carteira' && (
+              <div className="info-section-content">
+                <p> Para fugir de taxas, saque e depósitos não serão instantâneos.</p>
+                <p> Para evitar bots e multicontas, necessário depósito antes de realizar saques. Informações bancárias de saque devem coincidir com dados de depósito. </p>
+                <p>Saque e depósito mínimo de R$ 5,00.</p>
+              </div>
+            )}
+          </div>
+
           {/* Seção: Probabilidades de Loot */}
           <div className="info-section">
             <button
               className="info-section-header"
               onClick={() => toggleSection('chances')}
             >
-              <span>Probabilidades de Loot</span>
+              <span>Probabilidades</span>
               {expandedSection === 'chances' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </button>
             {expandedSection === 'chances' && (
@@ -196,9 +214,6 @@ export default function InfoModal({ isOpen, onClose }) {
                 <p>Telegram: <a className="contato" href="https://t.me/+0R6rVBsv6IliZDQx"
                   target="_blank" rel="noopener noreferrer">Entrar no grupo.</a></p>
                 <p>E-mail: mageprotocol.jogo@gmail.com</p>
-
-
-
               </div>
             )}
           </div>

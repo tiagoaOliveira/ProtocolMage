@@ -17,7 +17,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   color: white;
 }
 
@@ -45,7 +45,7 @@
 .admin-filtros {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
 }
 
@@ -68,35 +68,6 @@
 .admin-filtros button.active {
   background: white;
   color: #667eea;
-}
-
-.admin-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border-radius: 15px;
-  padding: 1.5rem;
-  text-align: center;
-  color: white;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
-
-.stat-card h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-.stat-card p {
-  margin: 0;
-  font-size: 2.5rem;
-  font-weight: bold;
 }
 
 .transacoes-lista {
@@ -134,7 +105,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
   padding-bottom: 1rem;
   border-bottom: 2px solid #f3f4f6;
 }
@@ -157,11 +127,6 @@
   color: #92400e;
 }
 
-.transacao-status.processando {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
 .transacao-status.aprovado {
   background: #d1fae5;
   color: #065f46;
@@ -170,17 +135,6 @@
 .transacao-status.negado {
   background: #fee2e2;
   color: #991b1b;
-}
-
-.transacao-info,
-.transacao-dados-bancarios {
-  margin-bottom: 1.5rem;
-}
-
-.transacao-dados-bancarios h4 {
-  color: #1f2937;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
 }
 
 .info-row {

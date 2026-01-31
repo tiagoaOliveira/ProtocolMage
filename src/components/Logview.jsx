@@ -22,11 +22,13 @@ const Logview = ({
     );
   }
 
+  // Verifica se precisa inverter o log
   const inicio = logTurnos[0]?.inicio;
   const precisaInverter = inicio && 
     inicio.oponente && 
     inicio.oponente.nome === userName;
 
+  // Processa o log: inverte se necessário
   const logProcessado = precisaInverter ? logTurnos.map(turno => {
     if (turno.inicio) {
       return {
@@ -38,7 +40,6 @@ const Logview = ({
       };
     }
     
-    // Inverte também as ações e HP dos turnos
     return {
       ...turno,
       turn: turno.turn,
@@ -61,6 +62,10 @@ const Logview = ({
 
   const turno = turnoAtual > 0 ? logProcessado[turnoAtual] : null;
   const totalTurnos = logProcessado.length - 1;
+
+  // Detecta quem atacou primeiro no turno 1
+  const primeiraAcao = logProcessado[1]?.actions?.[0];
+  const primeiroAtacante = primeiraAcao?.actor || 'user'; // 'user' ou 'opponent'
 
   const getVencedor = () => {
     const ultimoTurno = logProcessado[logProcessado.length - 1];
@@ -170,6 +175,12 @@ const Logview = ({
     ));
   };
 
+  // Define quem é o primeiro e segundo atacante
+  const primeiroLabel = primeiroAtacante === 'user' ? userLabel : oponenteLabel;
+  const segundoLabel = primeiroAtacante === 'user' ? oponenteLabel : userLabel;
+  const primeiroActor = primeiroAtacante;
+  const segundoActor = primeiroAtacante === 'user' ? 'opponent' : 'user';
+
   return (
     <div className="battle-log-overlay-test" onClick={onClose}>
       <div className="battle-log-container-test" onClick={e => e.stopPropagation()}>
@@ -192,7 +203,6 @@ const Logview = ({
                   <div>⚔️ Ataque: {inicioProcessado.user.attack}</div>
                   <div>⭐ Nível: {inicioProcessado.user.nivel}</div>
                   
-                  {/* Skills do Usuário */}
                   {inicioProcessado.user.skills?.length > 0 && (
                     <div className='skills-iniciais-section'>
                       <div className='skills-text'>
@@ -200,19 +210,29 @@ const Logview = ({
                       </div>
                       <div className='skills-iniciais'>
                         {inicioProcessado.user.skills.map((skillData, idx) => {
-                          // Buscar skill completa do availableSkills pelo nome
                           const fullSkill = availableSkills.find(s => s.skill?.name === skillData.nome);
                           return (
                             <div
                               key={idx}
                               onClick={() => fullSkill && onSkillClick?.(fullSkill.skill)}
-                              className='skills-log'>
+                              className='skills-log'
+                              style={{ cursor: onSkillClick ? 'pointer' : 'default' }}>
                               {fullSkill?.skill?.image ? (
                                 <img 
                                   src={fullSkill.skill.image} 
-                                  alt={skillData.nome}/>
+                                  alt={skillData.nome}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                               ) : (
-                                <div>
+                                <div style={{ 
+                                  width: '100%', 
+                                  height: '100%', 
+                                  background: 'rgba(255,255,255,0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.7rem',
+                                  color: '#ffd700'
+                                }}>
                                   {skillData.nome?.slice(0, 2).toUpperCase()}
                                 </div>
                               )}
@@ -223,14 +243,15 @@ const Logview = ({
                     </div>
                   )}
                 </div>
+                
                 <div className="battle-log-versus">VS</div>
+                
                 <div className="battle-log-stat-block">
                   <div className="battle-log-stat-label">{oponenteLabel}</div>
                   <div>❤️ HP: {inicioProcessado.oponente.hp}</div>
                   <div>⚔️ Ataque: {inicioProcessado.oponente.attack}</div>
                   <div>⭐ Nível: {inicioProcessado.oponente.nivel}</div>
                   
-                  {/* Skills do Oponente */}
                   {inicioProcessado.oponente.skills?.length > 0 && (
                     <div className='skills-iniciais-section'>
                       <div className='skills-text'>
@@ -243,13 +264,24 @@ const Logview = ({
                             <div
                               key={idx}
                               onClick={() => fullSkill && onSkillClick?.(fullSkill.skill)}
-                              className='skills-log'>
+                              className='skills-log'
+                              style={{ cursor: onSkillClick ? 'pointer' : 'default' }}>
                               {fullSkill?.skill?.image ? (
                                 <img 
                                   src={fullSkill.skill.image} 
-                                  alt={skillData.nome}/>
+                                  alt={skillData.nome}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                               ) : (
-                                <div>
+                                <div style={{ 
+                                  width: '100%', 
+                                  height: '100%', 
+                                  background: 'rgba(255,255,255,0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.7rem',
+                                  color: '#ffd700'
+                                }}>
                                   {skillData.nome?.slice(0, 2).toUpperCase()}
                                 </div>
                               )}
@@ -278,29 +310,29 @@ const Logview = ({
                 </div>
               </div>
 
-              {/* Grid com 2 colunas: User e Oponente */}
+              {/* Grid com 2 colunas: PRIMEIRO atacante (azul) e SEGUNDO atacante (vermelho) */}
               <div className="battle-log-combatants-grid">
-                {/* Coluna do User */}
+                {/* Coluna do PRIMEIRO atacante (azul) */}
                 <div className="battle-log-combatant-column user">
                   <div className="battle-log-combatant-header user">
-                    🔵 {userLabel}
+                    🔵 {primeiroLabel}
                   </div>
 
-                  {/* Status Effects do User */}
-                  {turno.status_effects && turno.status_effects.some(e => e.alvo === 'user') && (
+                  {/* Status Effects */}
+                  {turno.status_effects && turno.status_effects.some(e => e.alvo === primeiroActor) && (
                     <div className="battle-log-section">
                       <div className="battle-log-section-title">🔥 Efeitos Ativos</div>
                       <div className="battle-log-status-section">
-                        {renderStatusEffects('user')}
+                        {renderStatusEffects(primeiroActor)}
                       </div>
                     </div>
                   )}
 
-                  {/* Ações do User */}
-                  {getUserActions(turno.actions).length > 0 && (
+                  {/* Ações */}
+                  {turno.actions.filter(a => a.actor === primeiroActor).length > 0 && (
                     <div className="battle-log-section">
                       <div className="battle-log-section-title">⚔️ Ação</div>
-                      {getUserActions(turno.actions).map((action, idx) => (
+                      {turno.actions.filter(a => a.actor === primeiroActor).map((action, idx) => (
                         <div key={idx} className="battle-log-action-item user">
                           <div className="battle-log-action-detail">
                             {formatAction(action)}
@@ -310,40 +342,40 @@ const Logview = ({
                     </div>
                   )}
 
-                  {/* Dano Recebido pelo User */}
-                  {getUserDamageTaken(turno.actions).length > 0 && (
+                  {/* Dano Recebido */}
+                  {turno.actions.filter(a => a.actor === segundoActor && (a.dano > 0 || a.dano_causado > 0 || a.dano_inicial > 0)).length > 0 && (
                     <div className="battle-log-section">
                       <div className="battle-log-section-title">💔 Dano Recebido</div>
-                      {getUserDamageTaken(turno.actions).map((action, idx) => (
+                      {turno.actions.filter(a => a.actor === segundoActor && (a.dano > 0 || a.dano_causado > 0 || a.dano_inicial > 0)).map((action, idx) => (
                         <div key={idx} className="battle-log-damage-taken">
-                          💥 {action.dano || action.dano_causado} de dano de {action.nome || 'Ataque'}
+                          💥 {action.dano || action.dano_causado || action.dano_inicial} de dano de {action.nome || 'Ataque'}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Coluna do Oponente */}
+                {/* Coluna do SEGUNDO atacante (vermelho) */}
                 <div className="battle-log-combatant-column opponent">
                   <div className="battle-log-combatant-header opponent">
-                    🔴 {oponenteLabel}
+                    🔴 {segundoLabel}
                   </div>
 
-                  {/* Status Effects do Oponente */}
-                  {turno.status_effects && turno.status_effects.some(e => e.alvo === 'opponent') && (
+                  {/* Status Effects */}
+                  {turno.status_effects && turno.status_effects.some(e => e.alvo === segundoActor) && (
                     <div className="battle-log-section">
                       <div className="battle-log-section-title">🔥 Efeitos Ativos</div>
                       <div className="battle-log-status-section">
-                        {renderStatusEffects('opponent')}
+                        {renderStatusEffects(segundoActor)}
                       </div>
                     </div>
                   )}
 
-                  {/* Ações do Oponente */}
-                  {getOpponentActions(turno.actions).length > 0 && (
+                  {/* Ações */}
+                  {turno.actions.filter(a => a.actor === segundoActor).length > 0 && (
                     <div className="battle-log-section">
                       <div className="battle-log-section-title">⚔️ Ação</div>
-                      {getOpponentActions(turno.actions).map((action, idx) => (
+                      {turno.actions.filter(a => a.actor === segundoActor).map((action, idx) => (
                         <div key={idx} className="battle-log-action-item opponent">
                           <div className="battle-log-action-detail">
                             {formatAction(action)}
@@ -353,11 +385,11 @@ const Logview = ({
                     </div>
                   )}
 
-                  {/* Dano Recebido pelo Oponente */}
-                  {getOpponentDamageTaken(turno.actions).length > 0 && (
+                  {/* Dano Recebido */}
+                  {turno.actions.filter(a => a.actor === primeiroActor && (a.dano > 0 || a.dano_causado > 0 || a.dano_inicial > 0)).length > 0 && (
                     <div className="battle-log-section">
                       <div className="battle-log-section-title">💔 Dano Recebido</div>
-                      {getOpponentDamageTaken(turno.actions).map((action, idx) => (
+                      {turno.actions.filter(a => a.actor === primeiroActor && (a.dano > 0 || a.dano_causado > 0 || a.dano_inicial > 0)).map((action, idx) => (
                         <div key={idx} className="battle-log-damage-taken">
                           💥 {action.dano || action.dano_causado || action.dano_inicial} de dano de {action.nome || 'Ataque'}
                         </div>
@@ -376,30 +408,28 @@ const Logview = ({
                 {getVencedor() === userLabel ? '🎉 VITÓRIA!' :
                   getVencedor() === oponenteLabel ? '💀 DERROTA' : '🤝 EMPATE'}
               </h2>
-
             </div>
           )}
         </div>
 
-        {/* Navegação - Fixa na parte de baixo */}
+        {/* Navegação */}
         <div className="battle-log-navigation">
           <button
             onClick={() => setTurnoAtual(Math.max(0, turnoAtual - 1))}
             disabled={turnoAtual === 0}
             className="battle-log-nav-btn"
           >
-            ← 
+            ←
           </button>
           <span className="battle-log-nav-text">
             {turnoAtual === 0 ? 'Início' : `Turno ${turno?.turn || turnoAtual}`} / {totalTurnos} turnos
           </span>
-
           <button
             onClick={() => setTurnoAtual(Math.min(totalTurnos, turnoAtual + 1))}
             disabled={turnoAtual === totalTurnos}
             className="battle-log-nav-btn"
           >
-             →
+            →
           </button>
         </div>
       </div>

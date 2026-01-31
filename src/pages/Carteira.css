@@ -51,13 +51,6 @@
     margin-bottom: 1rem;
 }
 
-.carteira-warning {
-    display: block;
-    padding-bottom: 0.5rem;
-    font-size: 0.85rem;
-    opacity: 0.9;
-}
-
 .saldo {
     font-size: 1.4rem;
     margin: 1.5rem 0;
@@ -73,6 +66,7 @@
     display: flex;
     gap: 1rem;
     margin: 1.5rem 0;
+    flex-direction: column;
 }
 
 .depositar-btn,
@@ -153,13 +147,34 @@
 }
 
 .historico-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     background: rgba(255, 255, 255, 0.1);
     padding: 0.75rem;
     border-radius: 8px;
     font-size: 0.9rem;
+}
+
+.historico-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.historico-motivo {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 0.85rem;
+}
+
+.historico-motivo strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #fbbf24;
+}
+
+.historico-motivo p {
+    margin: 0;
+    opacity: 0.9;
 }
 
 .status-badge {
@@ -172,11 +187,6 @@
 
 .status-badge.pendente {
     background: #f59e0b;
-    color: white;
-}
-
-.status-badge.processando {
-    background: #3b82f6;
     color: white;
 }
 
@@ -256,6 +266,7 @@
 
 .modal-buttons {
     display: flex;
+    flex-direction: column;
     gap: 1rem;
     margin-top: 1.5rem;
 }
@@ -313,9 +324,5 @@
     .form-row {
         flex-direction: column;
         gap: 0;
-    }
-
-    .botoes-transacao {
-        flex-direction: column;
     }
 }

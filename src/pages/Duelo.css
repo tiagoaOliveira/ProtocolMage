@@ -171,7 +171,7 @@
     margin-bottom: 2rem !important;
 }
 
-.btn-cancelar {
+.btn-cancelar-duelo {
     background: linear-gradient(135deg, #ef4444, #dc2626);
     color: white;
     padding: 1rem 2rem;
@@ -182,11 +182,11 @@
     font-size: 1rem;
 }
 
-.btn-cancelar:hover:not(:disabled) {
+.btn-cancelar-duelo:hover:not(:disabled) {
     background: linear-gradient(135deg, #dc2626, #b91c1c);
 }
 
-.btn-cancelar:disabled {
+.btn-cancelar-duelo:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
