@@ -62,7 +62,7 @@
 .info-floating-button {
     position: absolute;
     top: 5rem;
-    right: 1.75rem;  
+    right: 1.5rem;  
     cursor: pointer;
     z-index: 999;
 }
@@ -230,7 +230,7 @@
 @media (max-width: 768px) {
     .info-floating-button {
         top: 4rem;
-        right: 0.5rem;
+        right: 1rem;
         width: 45px;
         height: 45px;
     }

@@ -4,134 +4,49 @@ import { useAuth } from '../contexts/AuthContext';
 import './Login.css';
 
 const Login = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [isSignUp, setIsSignUp] = useState(false);
-    const [nome, setNome] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    const { signIn, signUp } = useAuth();
-    const navigate = useNavigate();
+  const { signInWithGoogle } = useAuth();
+  const navigate = useNavigate();
 
-    const handleSubmit = async () => {
-        setError('');
-        setLoading(true);
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      // OAuth redireciona automaticamente
+    } catch (err) {
+      setError(err.message || 'Erro ao fazer login com Google');
+      setLoading(false);
+    }
+  };
 
-        try {
-            if (isSignUp) {
-                // Validação da confirmação de senha
-                if (password !== confirmPassword) {
-                    setError('As senhas não coincidem');
-                    setLoading(false);
-                    return;
-                }
-                
-                await signUp(email, password, nome);
-                setError('Cadastro realizado! Verifique seu e-mail para confirmar.');
-            } else {
-                await signIn(email, password);
-                navigate('/home');
-            }
-        } catch (err) {
-            setError(err.message || `Erro ao ${isSignUp ? 'cadastrar' : 'fazer login'}`);
-        } finally {
-            setLoading(false);
-        }
-    };
+  return (
+    <div className="login-container">
+      <div className="login-box">
+        <h1 className="login-title">Bem-vindo</h1>
 
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter') {
-            handleSubmit();
-        }
-    };
+        <div className="login-form">
+          {error && <div className="error-message">{error}</div>}
 
-    return (
-        <div className="login-container">
-            <div className="login-box">
-                <h1 className="login-title">{isSignUp ? 'Criar Conta' : 'Bem-vindo'}</h1>
-
-                {isSignUp && (
-                    <div className="form-group">
-                        <label htmlFor="nome">Nome</label>
-                        <input
-                            id="nome"
-                            type="text"
-                            value={nome}
-                            onChange={(e) => setNome(e.target.value)}
-                            placeholder="Aparecerá para outros jogadores"
-                        />
-                    </div>
-                )}
-
-                <div className="login-form">
-                    <div className="form-group">
-                        <label htmlFor="email">E-mail</label>
-                        <input
-                            id="email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            placeholder="seu@email.com"
-                            disabled={loading}
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label htmlFor="password">Senha</label>
-                        <input
-                            id="password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            placeholder="••••••••"
-                            disabled={loading}
-                        />
-                    </div>
-
-                    {isSignUp && (
-                        <div className="form-group">
-                            <label htmlFor="confirmPassword">Confirmar Senha</label>
-                            <input
-                                id="confirmPassword"
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                onKeyPress={handleKeyPress}
-                                placeholder="••••••••"
-                                disabled={loading}
-                            />
-                        </div>
-                    )}
-
-                    {error && <div className="error-message">{error}</div>}
-
-                    <button
-                        onClick={handleSubmit}
-                        className="login-button"
-                        disabled={loading}
-                    >
-                        {loading ? 'Carregando...' : (isSignUp ? 'Cadastrar' : 'Entrar')}
-                    </button>
-
-                    <button
-                        onClick={() => {
-                            setIsSignUp(!isSignUp);
-                            setError('');
-                            setConfirmPassword('');
-                        }}
-                        className="toggle-button"
-                        type="button"
-                    >
-                        {isSignUp ? 'Já tem conta? Faça login' : 'Não tem conta? Cadastre-se'}
-                    </button>
-                </div>
-            </div>
+          <button
+            onClick={handleGoogleLogin}
+            className="login-button google-button"
+            disabled={loading}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+              <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18L12.05 13.56c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9.003 18z" fill="#34A853"/>
+              <path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.96H.957C.347 6.175 0 7.55 0 9.002c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+              <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.428 0 9.002 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+            </svg>
+            {loading ? 'Carregando...' : 'Continuar com Google'}
+          </button>
         </div>
-    );
+      </div>
+    </div>
+  );
 };
 
 export default Login;

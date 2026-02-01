@@ -154,8 +154,6 @@ const Torneio = () => {
       const result = await inscreverTorneio(user.id, tipoTorneioId);
 
       if (result.success) {
-        showToast('Inscrição realizada!', 'success');
-
         const [newUserData] = await Promise.all([
           getUserById(user.id)
         ]);
@@ -179,8 +177,6 @@ const Torneio = () => {
       const result = await cancelarInscricaoTorneio(user.id);
 
       if (result.success) {
-        showToast('Inscrição cancelada', 'success');
-
         const newUserData = await getUserById(user.id);
         setUserData(newUserData);
         setTorneioData(null);
