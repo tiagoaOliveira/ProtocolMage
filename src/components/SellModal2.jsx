@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { X, DollarSign } from 'lucide-react';
-import './Sellmodal.css'
+import './SellModal2.css'
 
-export default function SellModal({ isOpen, onClose, item, itemType, onConfirm }) {
+export default function SellModal({ isOpen, onClose, item, onConfirm }) {
   const [quantidade, setQuantidade] = useState(1);
   const [preco, setPreco] = useState('');
 

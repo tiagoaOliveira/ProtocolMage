@@ -6,7 +6,7 @@ import Home from './pages/Home';
 import Carteira from './pages/Carteira';
 import Duelo from './pages/Duelo';
 import Mercado from './pages/Mercado';
-import AdminPanel from './pages/AdminPanel2';
+import AdminPanel from './pages/AdminPanel';
 
 // Componente para proteger rotas
 function PrivateRoute({ children }) {

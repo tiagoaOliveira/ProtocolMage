@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import Toast, { useToast } from '../components/Toast';
-import './AdminPanel2.css';
+import './AdminPanel.css';
 
 const AdminPanel = () => {
   const { user } = useAuth();
