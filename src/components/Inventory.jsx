@@ -9,7 +9,7 @@ import {
   useXPItem,
   listItemOnMarketplace
 } from '../services/service';
-import SellModal from './SellModal2';
+import SellModal from './SellModal';
 import './Inventory.css';
 import Toast, { useToast } from './Toast';
 
