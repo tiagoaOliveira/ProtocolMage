@@ -9,14 +9,16 @@ import {
   listarTiposTorneio,
   processarTorneio,
   obterHistoricoBatalhas,
-  getUserSkills
+  getUserSkills,
+  comprarPasseTorneio,
+  obterStatusPasse
 } from '../services/service';
 import Header from '../components/Header';
 import Nav from '../components/Nav';
 import Logview from '../components/Logview';
 import HistoricoSimples from '../components/HistoricoSimples';
 import './Duelo.css';
-import '../components/Character.css'; // Importar CSS do modal de skill
+import '../components/Character.css';
 import Toast, { useToast } from '../components/Toast';
 
 const Torneio = () => {
@@ -32,6 +34,10 @@ const Torneio = () => {
   const [cancelando, setCancelando] = useState(false);
   const [showBattleLog, setShowBattleLog] = useState(false);
   const [mostrarResultado, setMostrarResultado] = useState(false);
+
+  // Estados para passe
+  const [statusPasse, setStatusPasse] = useState(null);
+  const [comprando, setComprando] = useState(false);
 
   // Estados para histórico
   const [showHistorico, setShowHistorico] = useState(false);
@@ -80,15 +86,17 @@ const Torneio = () => {
     const fetchData = async () => {
       if (!user) return;
       try {
-        const [userDataResult, tiposResult, skillsResult] = await Promise.all([
+        const [userDataResult, tiposResult, skillsResult, passeResult] = await Promise.all([
           getUserById(user.id),
           listarTiposTorneio(),
-          getUserSkills(user.id)
+          getUserSkills(user.id),
+          obterStatusPasse(user.id)
         ]);
 
         setUserData(userDataResult);
         setTiposTorneio(tiposResult);
         setAvailableSkills(skillsResult || []);
+        setStatusPasse(passeResult);
 
         await fetchTorneioData(true);
       } catch (error) {
@@ -135,7 +143,6 @@ const Torneio = () => {
         setBatalhando(true);
         setTorneioData(result);
 
-        // Processa a batalha
         try {
           await processarTorneio(result.torneio.id);
         } catch (error) {
@@ -148,6 +155,33 @@ const Torneio = () => {
 
     return () => clearInterval(interval);
   }, [torneioData, user.id]);
+
+  const handleComprarPasse = async () => {
+    if (comprando) return;
+
+    setComprando(true);
+    try {
+      const result = await comprarPasseTorneio(user.id);
+
+      if (result.success) {
+        const [newUserData, newPasseStatus] = await Promise.all([
+          getUserById(user.id),
+          obterStatusPasse(user.id)
+        ]);
+
+        setUserData(newUserData);
+        setStatusPasse(newPasseStatus);
+        showToast('Passe adquirido com sucesso!', 'success');
+      } else {
+        showToast(result.message, 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao comprar passe:', error);
+      showToast('Erro ao comprar passe', 'error');
+    } finally {
+      setComprando(false);
+    }
+  };
 
   const handleInscrever = async (tipoTorneioId) => {
     try {
@@ -246,6 +280,14 @@ const Torneio = () => {
     );
   }
 
+  const dataFormatada = new Date(statusPasse.expira_em).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
   const emTorneioAguardando = torneioData && torneioData.torneio.status === 'aguardando' && !torneioData.oponente;
   const exibirResultado = mostrarResultado || (torneioData && torneioData.torneio.status === 'finalizado');
 
@@ -257,30 +299,73 @@ const Torneio = () => {
         {!torneioData && !mostrarResultado && (
           <>
             <div className="torneios-header">
-              <h1>Duelos 1 Contra 1
-              </h1>
+              <h1>Duelos 1 Contra 1</h1>
               <button onClick={handleAbrirHistorico} className="btn-historico">
                 📜
               </button>
-
             </div>
+
+            {/* Info do Passe */}
+            {statusPasse && !statusPasse.tem_passe && (
+              <div className='passe-card'>
+                <p>
+                  🎫 Compre o passe mensal por <strong>R$ 5,00</strong> e jogue por 30 dias!
+                </p>
+                <button
+                  onClick={handleComprarPasse}
+                  disabled={comprando || userData.saldo < 5}
+                  style={{
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    color: 'white',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 'bold',
+                    cursor: userData.saldo >= 5 ? 'pointer' : 'not-allowed',
+                    opacity: userData.saldo >= 5 ? 1 : 0.5
+                  }}
+                >
+                  {comprando ? 'Comprando...' : 'Comprar Passe'}
+                </button>
+              </div>
+            )}
+
+            {statusPasse && statusPasse.tem_passe && (
+              <div className='passe-ativo'>
+                Passe ativo até {dataFormatada}              </div>
+            )}
 
             <div className="torneios-lista">
               {tiposTorneio.map(tipo => (
                 <div key={tipo.id} className="torneio-card">
                   <div className="torneio-card-header">
                     <h3>🏆 Prêmio: {tipo.premio_vencedor.toFixed(2)}</h3>
-                    <div className="torneio-card-taxa">R$ {tipo.taxa_inscricao.toFixed(2)}</div>
+                    <div className="torneio-card-taxa">
+                      R$ {tipo.taxa_inscricao.toFixed(2)}
+                    </div>
                   </div>
 
                   <p className="torneio-card-desc">{tipo.descricao}</p>
 
+                  {tipo.requer_passe && !statusPasse?.tem_passe && (
+                    <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                      ⚠️ Requer passe mensal
+                    </p>
+                  )}
+
                   <button
                     onClick={() => handleInscrever(tipo.id)}
                     className="btn-inscrever-card"
-                    disabled={userData.saldo < tipo.taxa_inscricao}
+                    disabled={
+                      userData.saldo < tipo.taxa_inscricao ||
+                      (tipo.requer_passe && !statusPasse?.tem_passe)
+                    }
                   >
-                    {userData.saldo < tipo.taxa_inscricao ? 'Saldo Insuficiente' : 'Lutar'}
+                    {userData.saldo < tipo.taxa_inscricao
+                      ? 'Saldo Insuficiente'
+                      : tipo.requer_passe && !statusPasse?.tem_passe
+                        ? 'Precisa de Passe'
+                        : 'Lutar'}
                   </button>
                 </div>
               ))}
@@ -320,14 +405,12 @@ const Torneio = () => {
               <div className={`player-card ${torneioData.torneio.vencedor_id === user.id ? 'vencedor' : 'perdedor'}`}>
                 <div className="player-avatar-big">{getAvatarDisplay(userData.avatar)}</div>
                 <div className="player-name">{userData.nome}</div>
-                <div className="player-level">Nível {userData.nivel}</div>
               </div>
               <div className="versus-text">VS</div>
 
               <div className={`player-card ${torneioData.torneio.vencedor_id === torneioData.oponente.id ? 'vencedor' : 'perdedor'}`}>
                 <div className="player-avatar-big">{getAvatarDisplay(torneioData.oponente.avatar)}</div>
                 <div className="player-name">{torneioData.oponente.nome}</div>
-                <div className="player-level">Nível {torneioData.oponente.nivel}</div>
               </div>
             </div>
 
@@ -380,7 +463,6 @@ const Torneio = () => {
         />
       )}
 
-      {/* Modal de Detalhes da Skill */}
       {skillDetailModal.open && skillDetailModal.skill && (
         <div className="skill-detail-overlay" onClick={() => setSkillDetailModal({ open: false, skill: null })}>
           <div className="skill-detail-container" onClick={(e) => e.stopPropagation()}>

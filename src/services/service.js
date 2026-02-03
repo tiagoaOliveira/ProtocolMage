@@ -58,6 +58,27 @@ export const checkDailyLootStatus = async (userId) => {
 };
 
 // ============================================
+// SISTEMA DE PASSE MENSAL
+// ============================================
+export const comprarPasseTorneio = async (userId) => {
+  const { data, error } = await supabase.rpc('comprar_passe_torneio', {
+    p_user_id: userId
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const obterStatusPasse = async (userId) => {
+  const { data, error } = await supabase.rpc('obter_status_passe', {
+    p_user_id: userId
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// ============================================
 // SISTEMA DE TORNEIOS (1v1)
 // ============================================
 
@@ -113,6 +134,7 @@ export const listarTiposTorneio = async () => {
   if (error) throw error;
   return data;
 };
+
 // Buscar histórico de batalhas (últimas 10)
 export const obterHistoricoBatalhas = async (userId) => {
   const { data, error } = await supabase
@@ -585,5 +607,7 @@ export default {
   cancelMarketplaceListing,
   getUserListings,
   getUserTransactions,
-  getSkillsEquipadas
+  getSkillsEquipadas,
+  comprarPasseTorneio,
+  obterStatusPasse
 };
