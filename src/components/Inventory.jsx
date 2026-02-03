@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Star, Backpack, Sparkles, ShoppingCart } from 'lucide-react';
 import {
+  getAllSkills,
   getUserSkills,
+  getAllXPItems,
   getUserXPItems,
   useXPItem,
   listItemOnMarketplace
@@ -11,9 +14,12 @@ import './Inventory.css';
 import Toast, { useToast } from './Toast';
 
 export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('skills');
-  const [skills, setSkills] = useState([]);
-  const [xpItems, setXpItems] = useState([]);
+  const [allSkills, setAllSkills] = useState([]);
+  const [userSkills, setUserSkills] = useState([]);
+  const [allXPItems, setAllXPItems] = useState([]);
+  const [userXPItems, setUserXPItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const { toasts, showToast, removeToast } = useToast();
 
@@ -27,19 +33,19 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
     }
   }, [isOpen, userId]);
 
-  const sortedXpItems = [...xpItems].sort(
-    (a, b) => a.item.id - b.item.id
-  );
-
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const [skillsData, xpItemsData] = await Promise.all([
+      const [allSkillsData, userSkillsData, allXPItemsData, userXPItemsData] = await Promise.all([
+        getAllSkills(),
         getUserSkills(userId),
+        getAllXPItems(),
         getUserXPItems(userId)
       ]);
-      setSkills(skillsData || []);
-      setXpItems(xpItemsData || []);
+      setAllSkills(allSkillsData || []);
+      setUserSkills(userSkillsData || []);
+      setAllXPItems(allXPItemsData || []);
+      setUserXPItems(userXPItemsData || []);
     } catch (error) {
       console.error('Erro ao carregar inventário:', error);
     } finally {
@@ -107,7 +113,7 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
               onClick={() => setActiveTab('skills')}
             >
               <Sparkles size={20} />
-              Habilidades
+              Magias
             </button>
             <button
               className={`inventory-tab ${activeTab === 'xp_items' ? 'active' : ''}`}
@@ -125,98 +131,139 @@ export default function InventoryModal({ isOpen, onClose, userId, onUpdate }) {
               <>
                 {activeTab === 'skills' && (
                   <div className="inventory-grid">
-                    {skills.length === 0 ? (
-                      <p className="inventory-empty">Nenhuma skill no inventário</p>
+                    {allSkills.length === 0 ? (
+                      <p className="inventory-empty">Nenhuma skill cadastrada</p>
                     ) : (
-                      skills.map((userSkill) => (
-                        <div key={userSkill.id} className="inventory-item">
-                          <div className='inventory-item-icon'>
-                            {userSkill.skill.image && (
-                              <img
-                                src={userSkill.skill.image}
-                                alt={userSkill.skill.name}
-                                className="inventory-item-image"
-                              />
-                            )}
-                            <div className="inventory-item-actions">
-                              <button
-                                className="btn-sell"
-                                onClick={() => openSellModal(userSkill, 'skill')}
-                                title="Vender no Mercado"
-                              >
-                                <ShoppingCart size={18} /> Vender
-                              </button>
-                            </div>
-                          </div>
+                      allSkills.map((skill) => {
+                        const userSkill = userSkills.find(us => us.skill_id === skill.id);
+                        const hasSkill = !!userSkill;
 
-                          <div className="inventory-item-info">
-                            <h3>{userSkill.skill.name}</h3>
-                            <div className="inventory-item-desc">
-                              {userSkill.skill.descricao || 'Sem descrição'}
-                              <div className="inventory-item-stats">
-                                <span className="item-quantity">x{userSkill.quantidade}</span>
-                                {userSkill.skill.cooldown && (
-                                <span style={{ display: 'block', marginTop: '4px', color: '#f09124', fontWeight: 'bold' }}>
-                                  Recarga:{userSkill.skill.cooldown}
-                                </span>
+                        return (
+                          <div key={skill.id} className="inventory-item">
+                            <div className='inventory-item-icon'>
+                              {skill.image && (
+                                <img
+                                  src={skill.image}
+                                  alt={skill.name}
+                                  className="inventory-item-image"
+                                />
                               )}
+                              <div className="inventory-item-actions">
+                                {hasSkill ? (
+                                  <button
+                                    className="btn-sell"
+                                    onClick={() => openSellModal(userSkill, 'skill')}
+                                    title="Vender no Mercado"
+                                  >
+                                    <ShoppingCart size={18} /> Vender
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="btn-convert"
+                                    onClick={() => {
+                                      onClose();
+                                      navigate('/mercado');
+                                    }}
+                                    title="Comprar no Mercado"
+                                  >
+                                    <ShoppingCart size={18} /> Comprar
+                                  </button>
+                                )}
                               </div>
-                              
+                            </div>
+
+                            <div className="inventory-item-info">
+                              <h3>{skill.name}</h3>
+                              <div className="inventory-item-desc">
+                                {skill.descricao || 'Sem descrição'}
+                                <div className="inventory-item-stats">
+                                  {hasSkill && (
+                                    <span className="item-quantity">x{userSkill.quantidade}</span>
+                                  )}
+                                  {skill.cooldown && (
+                                    <span style={{ display: 'block', marginTop: '4px', color: '#f09124', fontWeight: 'bold' }}>
+                                      Recarga: {skill.cooldown}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 )}
 
                 {activeTab === 'xp_items' && (
                   <div className="inventory-grid">
-                    {xpItems.length === 0 ? (
-                      <p className="inventory-empty">Nenhum frasco de XP no inventário</p>
+                    {allXPItems.length === 0 ? (
+                      <p className="inventory-empty">Nenhum frasco de XP cadastrado</p>
                     ) : (
-                      sortedXpItems.map((userItem) => (
-                        <div key={userItem.item.id} className="inventory-item xp-item">
-                          <div className="inventory-item-icon">
-                            <img
-                              src={`${userItem.item.xp_image}?v=${userItem.item.id}`}
-                              alt={userItem.item.nome}
-                              className="inventory-item-image"
-                            />
-                            <div className="inventory-item-actions">
-                              <button
-                                className="btn-use"
-                                onClick={() => handleUseXPItem(userItem.item_id, 1)}
-                              >
-                                Usar x1
-                              </button>
+                      allXPItems.map((xpItem) => {
+                        const userItem = userXPItems.find(ui => ui.item_id === xpItem.id);
+                        const hasItem = !!userItem;
 
-                              <button
-                                className="btn-use"
-                                onClick={() => handleUseXPItem(userItem.item_id, 10)}
-                              >
-                                Usar x10
-                              </button>
+                        return (
+                          <div key={xpItem.id} className="inventory-item xp-item">
+                            <div className="inventory-item-icon">
+                              <img
+                                src={`${xpItem.xp_image}?v=${xpItem.id}`}
+                                alt={xpItem.nome}
+                                className="inventory-item-image"
+                              />
+                              <div className="inventory-item-actions">
+                                {hasItem ? (
+                                  <>
+                                    <button
+                                      className="btn-use"
+                                      onClick={() => handleUseXPItem(userItem.item_id, 1)}
+                                    >
+                                      Usar x1
+                                    </button>
 
-                              <button
-                                className="btn-sell"
-                                onClick={() => openSellModal(userItem, 'xp_item')}
-                                title="Vender no Marketplace"
-                              >
-                                <ShoppingCart size={18} /> Vender
-                              </button>
+                                    <button
+                                      className="btn-use"
+                                      onClick={() => handleUseXPItem(userItem.item_id, 10)}
+                                    >
+                                      Usar x10
+                                    </button>
+
+                                    <button
+                                      className="btn-sell"
+                                      onClick={() => openSellModal(userItem, 'xp_item')}
+                                      title="Vender no Marketplace"
+                                    >
+                                      <ShoppingCart size={18} /> Vender
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    className="btn-convert"
+                                    onClick={() => {
+                                      onClose();
+                                      navigate('/mercado');
+                                    }}
+                                    title="Comprar no Mercado"
+                                  >
+                                    <ShoppingCart size={18} /> Comprar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="inventory-item-info">
+                              <h3>{xpItem.nome}</h3>
+                              <div className="inventory-item-stats">
+                                {hasItem && (
+                                  <span className="item-quantity">x{userItem.quantidade}</span>
+                                )}
+                                <span className="item-xp-large">+{xpItem.xp} XP</span>
+                              </div>
                             </div>
                           </div>
-
-                          <div className="inventory-item-info">
-                            <h3>{userItem.item.nome}</h3>
-                            <div className="inventory-item-stats">
-                              <span className="item-quantity">x{userItem.quantidade}</span>
-                              <span className="item-xp-large">+{userItem.item.xp} XP</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 )}

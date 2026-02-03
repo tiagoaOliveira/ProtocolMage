@@ -27,7 +27,7 @@ export const updateUserProfile = async (userId, updates) => {
 };
 
 // ============================================
-// LOOT SYSTEM - SEGURO (executado no servidor)
+// LOOT SYSTEM 
 // ============================================
 export const generateDailyLoot = async (userId) => {
   try {
@@ -153,6 +153,16 @@ export const obterHistoricoBatalhas = async (userId) => {
 // ============================================
 // INVENTÁRIO - SKILLS
 // ============================================
+export const getAllSkills = async () => {
+  const { data, error } = await supabase
+    .from('skills')
+    .select('*')
+    .order('id');
+
+  if (error) throw error;
+  return data;
+};
+
 export const getUserSkills = async (userId) => {
   const { data, error } = await supabase
     .from('user_skills')
@@ -209,6 +219,16 @@ export const equipBuildBatch = async (userId, skillSlots) => {
 // ============================================
 // INVENTÁRIO - XP ITEMS
 // ============================================
+export const getAllXPItems = async () => {
+  const { data, error } = await supabase
+    .from('xp_item_definitions')
+    .select('*')
+    .order('id');
+
+  if (error) throw error;
+  return data;
+};
+
 export const getUserXPItems = async (userId) => {
   const { data, error } = await supabase
     .from('user_xp_items')

@@ -227,7 +227,7 @@ export default function CharacterModal({
 
   const totalSlots = [0, 1, 2, 3, 4, 5];
 
-  const vidaBase = 100;
+  const vidaBase = 1000;
   const ataqueBase = 50;
   const vida = Math.floor(vidaBase * (1 + nivel * 0.2));
   const ataque = Math.floor(ataqueBase * (1 + nivel * 0.2));
@@ -275,8 +275,8 @@ export default function CharacterModal({
             </div>
 
             <div className="modal-stats">
-              <p><Heart size={28} color="#ff4444" fill="red" />Vida: {vida}</p>
               <p><Sword size={28} color="#ff8844" fill="#f35900ff" />Ataque: {ataque}</p>
+              <p><Heart size={28} color="#ff4444" fill="red" />Vida: {vida}</p>
             </div>
           </div>
 
@@ -481,7 +481,7 @@ export default function CharacterModal({
         <div className="skill-detail-overlay" onClick={closeSkillDetail}>
           <div className="skill-detail-container" onClick={(e) => e.stopPropagation()}>
             <div className="skill-detail-header">
-              
+
               <h3 className="skill-detail-name">{skillDetailModal.skill.name}</h3>
             </div>
 

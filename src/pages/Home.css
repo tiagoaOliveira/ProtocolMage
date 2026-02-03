@@ -58,13 +58,20 @@
     gap: 0.75rem;
 }
 
-/* BOTÃO FLUTUANTE DE INFORMAÇÕES */
-.info-floating-button {
+/* BOTÕES FLUTUANTES */
+.floating-buttons-container {
     position: absolute;
-    top: 5rem;
-    right: 1.5rem;  
-    cursor: pointer;
+    top: 6rem;
+    left: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
     z-index: 999;
+}
+
+.info-floating-button {
+    cursor: pointer;
+    transition: transform 0.3s ease;
 }
 
 .info-floating-button:hover {
@@ -227,16 +234,116 @@
     box-shadow: 0 5px 20px rgba(255, 215, 0, 0.5);
 }
 
+/* TUTORIAL MODAL */
+.tutorial-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+    animation: fadeIn 0.3s ease;
+}
+
+.tutorial-modal-content {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 20px;
+    padding: 1rem;
+    max-width: 500px;
+    border: 3px solid #f09124;
+    animation: scaleIn 0.4s ease;
+}
+
+.tutorial-modal-content h2 {
+    color: #f09124;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-size: 28px;
+}
+
+.tutorial-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.tutorial-step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    border-radius: 12px;
+    border: 2px solid rgba(240, 145, 36, 0.3);
+    transition: all 0.3s ease;
+}
+
+.tutorial-step:hover {
+    border-color: rgba(240, 145, 36, 0.6);
+    transform: translateX(5px);
+}
+
+.tutorial-step p {
+    color: white;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.tutorial-step strong {
+    color: #f09124;
+}
+
+.tutorial-close-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, #f09124, #e67e00);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tutorial-close-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 20px rgba(240, 145, 36, 0.5);
+}
+
 @media (max-width: 768px) {
-    .info-floating-button {
-        top: 4rem;
-        right: 1rem;
-        width: 45px;
-        height: 45px;
+    .floating-buttons-container {
+        top: 6rem;
+    }
+
+    .info-floating-button svg {
+        width: 32px;
+        height: 32px;
+    }
+
+    .tutorial-modal-content {
+        padding: 1rem;
+    }
+
+    .tutorial-modal-content h2 {
+        font-size: 24px;
+    }
+
+    .tutorial-step {
+        gap: 0.75rem;
     }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 767px) {
+    .floating-buttons-container {
+        top: 4.5rem;
+        left: 0.5rem;
+    }
+
     .fight {
         gap: 1rem;
     }

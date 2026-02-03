@@ -26,6 +26,7 @@ const Login = () => {
     <div className="login-container">
       <div className="login-box">
         <h1 className="login-title">Bem-vindo</h1>
+        <p>Entre com sua conta Gmail para continuar.</p>
 
         <div className="login-form">
           {error && <div className="error-message">{error}</div>}

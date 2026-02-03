@@ -6,9 +6,9 @@ import Header from '../components/Header';
 import Nav from '../components/Nav';
 import CharacterModal from '../components/Character';
 import InventoryModal from '../components/Inventory';
-import InfoModal from '../components/InfoModal'; // ADICIONAR ESTA LINHA
+import InfoModal from '../components/InfoModal'; 
 import Toast, { useToast } from '../components/Toast';
-import { Backpack, Sparkles, Star, Clock, ShieldQuestionMark } from 'lucide-react'; // ADICIONAR Info
+import { Backpack, Sparkles, Star, Clock, ShieldQuestionMark, Info } from 'lucide-react'; 
 import './Home.css';
 import mageperfil from '../assets/mage-perfil.png'
 import mage from '../assets/mage.png'
@@ -21,6 +21,7 @@ const Home = () => {
   const [characterModalOpen, setCharacterModalOpen] = useState(false);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
   const [infoModalOpen, setInfoModalOpen] = useState(false); // ADICIONAR ESTA LINHA
+  const [tutorialModalOpen, setTutorialModalOpen] = useState(false);
   const [fighting, setFighting] = useState(false);
   const [lootNotification, setLootNotification] = useState(null);
   const [equippedSkills, setEquippedSkills] = useState([]);
@@ -42,12 +43,11 @@ const Home = () => {
     };
 
     fetchLootStatus();
-    const interval = setInterval(fetchLootStatus, 60000); // Atualizar a cada 1 minuto
+    const interval = setInterval(fetchLootStatus, 60000); 
 
     return () => clearInterval(interval);
   }, [user]);
 
-  // Calcular tempo restante
   useEffect(() => {
     if (!lootStatus?.next_available_at) {
       setTimeRemaining('');
@@ -213,14 +213,23 @@ const Home = () => {
       <Header userData={userData} onLogout={handleLogout} />
       <Toast toasts={toasts} onRemove={removeToast} />
 
-      {/* ADICIONAR ESTE BOTÃO FLUTUANTE PARA ABRIR O MODAL DE INFO */}
-      <button 
-        className="info-floating-button"
-        onClick={() => setInfoModalOpen(true)}
-        title="Informações"
-      >
-        <ShieldQuestionMark size={36} color='#ff9800' />
-      </button>
+      <div className="floating-buttons-container">
+        <button
+          className="info-floating-button"
+          onClick={() => setInfoModalOpen(true)}
+          title="Informações"
+        >
+          <ShieldQuestionMark size={36} color='#ff9800' />
+        </button>
+
+        <button
+          className="info-floating-button tutorial-button"
+          onClick={() => setTutorialModalOpen(true)}
+          title="Tutorial"
+        >
+          <Info size={36} color='#2196F3' />
+        </button>
+      </div>
 
       <main className="home-content">
         <div className='fight'>
@@ -247,7 +256,40 @@ const Home = () => {
           </button>
         </div>
 
-        {/* Modal de Loot */}
+        {tutorialModalOpen && (
+          <div className="tutorial-modal-overlay" onClick={() => setTutorialModalOpen(false)}>
+            <div className="tutorial-modal-content" onClick={(e) => e.stopPropagation()}>
+              <h2>Bem-vindo!</h2>
+              <div className="tutorial-steps">
+                <div className="tutorial-step">
+                  <ShieldQuestionMark size={70} color='#ff9800' />
+                  <p>Clique em  <strong>Pegar itens</strong> para conseguir  magias e frascos de XP. São 15 itens por dia, reiniciando todo dias ás 00:00. </p>
+                </div>
+
+                <div className="tutorial-step">
+                  <Backpack color='#f09124' size={60} />
+                  <p>No <strong>inventário</strong> você encontra seus itens para usar ou vender para outros jogadores no mercado.</p>
+                </div>
+
+                <div className="tutorial-step">
+                  <img src={mageperfil} alt="Personagem" style={{ width: '3rem', height: '3rem', borderRadius: '100%', objectFit: 'cover' }} />
+                  <p>Acesse seu <strong>personagem</strong> para equipar magias e salvar builds. Um slot é liberado a cada 10 níveis. 60 é o nível máximo, 6 são os slots para magias.</p>
+                </div>
+
+                <div className="tutorial-step">
+                  <Star size={60} color="#FFD700" fill="#FFD700" />
+                  <p> Em média, você chegará no nível máximo em <strong>21 dias</strong> conseguindo <strong>9 magias</strong> aleatórias.
+                    Também pode comprar no mercado para acelerar seu progresso.
+                  </p>
+                </div>
+              </div>
+              <button className="tutorial-close-btn" onClick={() => setTutorialModalOpen(false)}>
+                Entendi!
+              </button>
+            </div>
+          </div>
+        )}
+
         {lootNotification && (
           <div className="loot-modal-overlay" onClick={() => setLootNotification(null)}>
             <div className="loot-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -279,7 +321,7 @@ const Home = () => {
                 className="loot-modal-confirm"
                 onClick={() => setLootNotification(null)}
               >
-                Coletar
+                Fechar
               </button>
             </div>
           </div>
@@ -307,10 +349,9 @@ const Home = () => {
           onUpdate={handleUserUpdate}
         />
 
-        {/* ADICIONAR O INFOMODAL AQUI */}
-        <InfoModal 
-          isOpen={infoModalOpen} 
-          onClose={() => setInfoModalOpen(false)} 
+        <InfoModal
+          isOpen={infoModalOpen}
+          onClose={() => setInfoModalOpen(false)}
         />
 
         <div className="nav-menu">

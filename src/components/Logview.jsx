@@ -302,10 +302,10 @@ const Logview = ({
               <div className="battle-log-turno-header">
                 <div className="battle-log-hp-display">
                   <span className="battle-log-hp-user">
-                    {userLabel}: {turno.hpUser} HP
+                    {primeiroLabel}: {primeiroActor === 'user' ? turno.hpUser : turno.hpOponente} HP
                   </span>
                   <span className="battle-log-hp-oponente">
-                    {oponenteLabel}: {turno.hpOponente} HP
+                    {segundoLabel}: {segundoActor === 'user' ? turno.hpUser : turno.hpOponente} HP
                   </span>
                 </div>
               </div>

@@ -102,6 +102,7 @@ export default function InfoModal({ isOpen, onClose }) {
               <div className="info-section-content">
                 <p> As batalhas são automáticas. Cada turno um jogador usa uma habilidade previamente equipada (se não houver nenhuma disponível o usuário realiza um auto ataque).</p>
                 <p>A escolha de quem ataca primeiro é aleatória (50%), em builds bem pensadas quem ataca primeiro pode ter vantagem.</p>
+                <p>No log de batalha, o primeiro a atacar é quem estiver com bordas e cores azuis. </p>
                 <p>Seu Nível influencia vida e dano de ataque, o que pode ser decisivo nas batalhas, pois magias usam dano de ataque como base para infligir dano ao oponente.</p>
               </div>
             )}
@@ -118,8 +119,7 @@ export default function InfoModal({ isOpen, onClose }) {
             </button>
             {expandedSection === 'carteira' && (
               <div className="info-section-content">
-                <p> Para fugir de taxas, saque e depósitos não serão instantâneos.</p>
-                <p> Para evitar bots e multicontas, necessário depósito antes de realizar saques. Informações bancárias de saque devem coincidir com dados de depósito. </p>
+                <p> Para evitar bots e multicontas, necessário pagamento vip de R$ 5,00. </p>
                 <p>Saque e depósito mínimo de R$ 5,00.</p>
               </div>
             )}

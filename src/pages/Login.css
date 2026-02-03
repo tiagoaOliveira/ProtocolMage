@@ -3,11 +3,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  background-image: url('/login.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
 }
 
 .login-box {
@@ -23,8 +18,13 @@
   font-size: 28px;
   font-weight: 700;
   color: #1a202c;
-  margin-bottom: 32px;
+  margin-bottom: 1.5rem;
   text-align: center;
+}
+
+.login-box p {
+  margin-bottom: 1.5rem;
+  text-indent: 0.4rem;
 }
 
 .login-form {
@@ -51,7 +51,6 @@
   border-radius: 8px;
   font-size: 16px;
   text-align: center;
-  letter-spacing: 8px;
   transition: all 0.2s;
   outline: none;
 }
