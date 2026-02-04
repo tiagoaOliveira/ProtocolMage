@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
+      console.log('Session:', data.session); // DEBUG
       setUser(data.session?.user ?? null);
       setLoading(false);
     });
@@ -18,6 +19,7 @@ export function AuthProvider({ children }) {
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth change:', _event, session); // DEBUG
       setUser(session?.user ?? null);
     });
 
