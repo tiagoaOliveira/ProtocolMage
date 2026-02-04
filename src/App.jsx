@@ -23,7 +23,7 @@ function PrivateRoute({ children }) {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           {/* Rota pública */}
           <Route path="/login" element={<Login />} />
@@ -75,7 +75,7 @@ function App() {
           {/* Qualquer rota inválida */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </AuthProvider>
   );
 }

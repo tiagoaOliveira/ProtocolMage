@@ -25,13 +25,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signInWithGoogle = async () => {
-  await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { 
-      redirectTo: `${window.location.origin}/ProtocolMage/`
-    }
-  });
-};
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+  };
 
   const signOut = async () => {
     await supabase.auth.signOut();
