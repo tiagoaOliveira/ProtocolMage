@@ -8,12 +8,10 @@ import Duelo from './pages/Duelo';
 import Mercado from './pages/Mercado';
 import AdminPanel from './pages/AdminPanel';
 
-// Componente para proteger rotas
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    // Pode colocar um spinner ou loading screen aqui
     return <div>Carregando...</div>;
   }
 
