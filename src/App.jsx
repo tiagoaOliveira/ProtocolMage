@@ -1,5 +1,5 @@
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter , Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -21,7 +21,7 @@ function PrivateRoute({ children }) {
 function App() {
   return (
     <AuthProvider>
-      <HashRouter>
+      <BrowserRouter basename="/ProtocolMage">
         <Routes>
           {/* Rota pública */}
           <Route path="/login" element={<Login />} />
@@ -73,7 +73,7 @@ function App() {
           {/* Qualquer rota inválida */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </HashRouter>
+      </BrowserRouter >
     </AuthProvider>
   );
 }
