@@ -1967,7 +1967,7 @@ CREATE INDEX idx_torneios_jogador1 ON torneios(jogador1_id);
 CREATE INDEX idx_torneios_jogador2 ON torneios(jogador2_id);
 
 -- ============================================
--- INSCREVER NO TORNEIO
+-- INSCREVER NO TORNEIO (VERSÃO CORRIGIDA)
 -- ============================================
 CREATE OR REPLACE FUNCTION inscrever_torneio(
   p_user_id UUID,
@@ -1979,18 +1979,28 @@ DECLARE
   v_taxa DECIMAL(10, 2);
   v_saldo_atual DECIMAL(10, 2);
 BEGIN
+  -- Inicia transação implícita (função já roda em transação)
+  
+  -- 1. Valida tipo de torneio
   SELECT taxa_inscricao INTO v_taxa
-  FROM tipos_torneio WHERE id = p_tipo_torneio_id AND ativo = true;
+  FROM tipos_torneio 
+  WHERE id = p_tipo_torneio_id AND ativo = true;
   
   IF NOT FOUND THEN
     RETURN json_build_object('success', false, 'message', 'Tipo de torneio não encontrado');
   END IF;
   
-  SELECT saldo INTO v_saldo_atual FROM users WHERE id = p_user_id;
+  -- 2. Valida saldo COM LOCK para evitar débito duplo
+  SELECT saldo INTO v_saldo_atual 
+  FROM users 
+  WHERE id = p_user_id
+  FOR UPDATE;  -- Lock na linha do usuário
+  
   IF v_saldo_atual < v_taxa THEN
     RETURN json_build_object('success', false, 'message', 'Saldo insuficiente');
   END IF;
   
+  -- 3. Verifica se já está em torneio ativo
   IF EXISTS (
     SELECT 1 FROM torneios
     WHERE (jogador1_id = p_user_id OR jogador2_id = p_user_id)
@@ -1999,28 +2009,41 @@ BEGIN
     RETURN json_build_object('success', false, 'message', 'Você já está em um torneio');
   END IF;
   
+  -- 4. Busca torneio aguardando COM LOCK
   SELECT id INTO v_torneio_id
   FROM torneios
   WHERE tipo_torneio_id = p_tipo_torneio_id 
   AND status = 'aguardando'
   AND jogador2_id IS NULL
-  LIMIT 1;
+  ORDER BY created_at
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED;  -- Lock sem espera, pula se já travado
   
-  UPDATE users SET saldo = saldo - v_taxa WHERE id = p_user_id;
+  -- 5. Debita taxa ANTES de criar/atualizar torneio
+  UPDATE users 
+  SET saldo = saldo - v_taxa 
+  WHERE id = p_user_id;
   
+  -- 6. Cria novo torneio OU adiciona como jogador2
   IF v_torneio_id IS NULL THEN
     -- Cria novo torneio
     INSERT INTO torneios (tipo_torneio_id, jogador1_id)
     VALUES (p_tipo_torneio_id, p_user_id)
     RETURNING id INTO v_torneio_id;
   ELSE
-    -- Segundo jogador entra → Trigger vai processar batalha automaticamente
+    -- Adiciona como jogador2 (trigger vai mudar status para 'processando')
     UPDATE torneios 
     SET jogador2_id = p_user_id
     WHERE id = v_torneio_id;
   END IF;
   
+  -- Transação commitada automaticamente se chegar aqui
   RETURN json_build_object('success', true, 'torneio_id', v_torneio_id);
+  
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Rollback automático em caso de erro
+    RETURN json_build_object('success', false, 'message', 'Erro ao processar inscrição: ' || SQLERRM);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -2718,3 +2741,320 @@ serve(async (req) => {
     )
   }
 })
+
+***
+-- ============================================
+-- MIGRAÇÃO: Sistema de Passe Mensal + Ajustes
+-- ============================================
+
+-- 1. ALTERAR VALOR MÍNIMO DE DEPÓSITO/SAQUE PARA R$ 10,00
+-- Dropar constraint antiga e criar nova
+ALTER TABLE public.transacoes DROP CONSTRAINT IF EXISTS transacoes_valor_check;
+ALTER TABLE public.transacoes ADD CONSTRAINT transacoes_valor_check CHECK (valor >= 10.00);
+
+-- 2. ATUALIZAR FUNÇÃO DE DEPÓSITO
+CREATE OR REPLACE FUNCTION public.solicitar_deposito(
+  p_valor DECIMAL(10, 2),
+  p_banco TEXT,
+  p_agencia TEXT,
+  p_conta TEXT,
+  p_nome_titular TEXT
+)
+RETURNS UUID AS $$
+DECLARE
+  v_transacao_id UUID;
+BEGIN
+  IF p_valor < 10.00 THEN
+    RAISE EXCEPTION 'Valor mínimo de depósito é R$ 10,00';
+  END IF;
+  
+  IF p_banco IS NULL OR p_banco = '' THEN
+    RAISE EXCEPTION 'Banco é obrigatório';
+  END IF;
+  
+  IF p_agencia IS NULL OR p_agencia = '' THEN
+    RAISE EXCEPTION 'Agência é obrigatória';
+  END IF;
+  
+  IF p_conta IS NULL OR p_conta = '' THEN
+    RAISE EXCEPTION 'Conta é obrigatória';
+  END IF;
+  
+  IF p_nome_titular IS NULL OR p_nome_titular = '' THEN
+    RAISE EXCEPTION 'Nome do titular é obrigatório';
+  END IF;
+  
+  IF EXISTS (
+    SELECT 1 FROM public.transacoes
+    WHERE user_id = auth.uid()
+      AND status = 'pendente'
+  ) THEN
+    RAISE EXCEPTION 'Você já possui uma transação pendente';
+  END IF;
+  
+  INSERT INTO public.transacoes (
+    user_id, tipo, valor, banco, agencia, conta, nome_titular
+  )
+  VALUES (
+    auth.uid(), 'deposito', p_valor, p_banco, p_agencia, p_conta, p_nome_titular
+  )
+  RETURNING id INTO v_transacao_id;
+  
+  RETURN v_transacao_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. ATUALIZAR FUNÇÃO DE SAQUE
+CREATE OR REPLACE FUNCTION public.solicitar_saque(
+  p_valor DECIMAL(10, 2),
+  p_banco TEXT,
+  p_agencia TEXT,
+  p_conta TEXT,
+  p_nome_titular TEXT
+)
+RETURNS UUID AS $$
+DECLARE
+  v_transacao_id UUID;
+  v_saldo_atual DECIMAL(10, 2);
+  v_deposito_aprovado BOOLEAN;
+  v_dados_bancarios_match BOOLEAN;
+BEGIN
+  IF p_valor < 10.00 THEN
+    RAISE EXCEPTION 'Valor mínimo de saque é R$ 10,00';
+  END IF;
+  
+  IF EXISTS (
+    SELECT 1 FROM public.transacoes
+    WHERE user_id = auth.uid()
+      AND status = 'pendente'
+  ) THEN
+    RAISE EXCEPTION 'Você já possui uma transação pendente';
+  END IF;
+  
+  SELECT saldo INTO v_saldo_atual
+  FROM public.users
+  WHERE id = auth.uid();
+  
+  IF v_saldo_atual < p_valor THEN
+    RAISE EXCEPTION 'Saldo insuficiente. Saldo atual: R$ %.2f', v_saldo_atual;
+  END IF;
+  
+  SELECT EXISTS (
+    SELECT 1 FROM public.transacoes
+    WHERE user_id = auth.uid()
+      AND tipo = 'deposito'
+      AND status = 'aprovado'
+  ) INTO v_deposito_aprovado;
+  
+  IF NOT v_deposito_aprovado THEN
+    RAISE EXCEPTION 'É necessário ter feito ao menos um depósito aprovado antes de sacar';
+  END IF;
+  
+  SELECT EXISTS (
+    SELECT 1 FROM public.transacoes
+    WHERE user_id = auth.uid()
+      AND tipo = 'deposito'
+      AND status = 'aprovado'
+      AND banco = p_banco
+      AND agencia = p_agencia
+      AND conta = p_conta
+  ) INTO v_dados_bancarios_match;
+  
+  IF NOT v_dados_bancarios_match THEN
+    RAISE EXCEPTION 'Os dados bancários devem ser os mesmos utilizados no depósito aprovado';
+  END IF;
+  
+  INSERT INTO public.transacoes (
+    user_id, tipo, valor, banco, agencia, conta, nome_titular
+  )
+  VALUES (
+    auth.uid(), 'saque', p_valor, p_banco, p_agencia, p_conta, p_nome_titular
+  )
+  RETURNING id INTO v_transacao_id;
+  
+  RETURN v_transacao_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 4. CRIAR TABELA DE PASSES (SE NÃO EXISTIR)
+CREATE TABLE IF NOT EXISTS public.passes_torneio (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  data_compra TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  data_expiracao TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+  ativo BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_passes_user_id ON public.passes_torneio(user_id);
+CREATE INDEX IF NOT EXISTS idx_passes_ativo ON public.passes_torneio(ativo);
+
+-- 5. ADICIONAR COLUNA requer_passe NA TABELA tipos_torneio (SE NÃO EXISTIR)
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'tipos_torneio' 
+    AND column_name = 'requer_passe'
+  ) THEN
+    ALTER TABLE public.tipos_torneio ADD COLUMN requer_passe BOOLEAN DEFAULT true;
+  END IF;
+END $$;
+
+-- 6. CRIAR FUNÇÕES DO SISTEMA DE PASSE
+CREATE OR REPLACE FUNCTION public.comprar_passe_torneio(p_user_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  v_saldo_atual DECIMAL(10, 2);
+  v_passe_id UUID;
+  v_custo DECIMAL(10, 2) := 5.00;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.passes_torneio
+    WHERE user_id = p_user_id 
+    AND ativo = true 
+    AND data_expiracao > NOW()
+  ) THEN
+    RETURN json_build_object(
+      'success', false, 
+      'message', 'Você já possui um passe ativo'
+    );
+  END IF;
+  
+  SELECT saldo INTO v_saldo_atual FROM users WHERE id = p_user_id;
+  IF v_saldo_atual < v_custo THEN
+    RETURN json_build_object(
+      'success', false, 
+      'message', 'Saldo insuficiente. Necessário R$ 5,00'
+    );
+  END IF;
+  
+  UPDATE public.passes_torneio
+  SET ativo = false
+  WHERE user_id = p_user_id;
+  
+  INSERT INTO public.passes_torneio (user_id)
+  VALUES (p_user_id)
+  RETURNING id INTO v_passe_id;
+  
+  UPDATE users SET saldo = saldo - v_custo WHERE id = p_user_id;
+  
+  RETURN json_build_object(
+    'success', true, 
+    'passe_id', v_passe_id,
+    'expira_em', NOW() + INTERVAL '30 days'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.tem_passe_ativo(p_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.passes_torneio
+    WHERE user_id = p_user_id 
+    AND ativo = true 
+    AND data_expiracao > NOW()
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION public.obter_status_passe(p_user_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  v_passe RECORD;
+BEGIN
+  SELECT * INTO v_passe
+  FROM public.passes_torneio
+  WHERE user_id = p_user_id 
+  AND ativo = true 
+  AND data_expiracao > NOW()
+  ORDER BY data_expiracao DESC
+  LIMIT 1;
+  
+  IF FOUND THEN
+    RETURN json_build_object(
+      'tem_passe', true,
+      'expira_em', v_passe.data_expiracao,
+      'dias_restantes', EXTRACT(DAY FROM (v_passe.data_expiracao - NOW()))
+    );
+  ELSE
+    RETURN json_build_object('tem_passe', false);
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 7. ATUALIZAR FUNÇÃO inscrever_torneio PARA VALIDAR PASSE
+CREATE OR REPLACE FUNCTION public.inscrever_torneio(
+  p_user_id UUID,
+  p_tipo_torneio_id UUID
+)
+RETURNS JSON AS $$
+DECLARE
+  v_torneio_id UUID;
+  v_taxa DECIMAL(10, 2);
+  v_saldo_atual DECIMAL(10, 2);
+  v_requer_passe BOOLEAN;
+BEGIN
+  SELECT taxa_inscricao, requer_passe INTO v_taxa, v_requer_passe
+  FROM tipos_torneio 
+  WHERE id = p_tipo_torneio_id AND ativo = true;
+  
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'message', 'Tipo de torneio não encontrado');
+  END IF;
+  
+  IF v_requer_passe AND NOT tem_passe_ativo(p_user_id) THEN
+    RETURN json_build_object(
+      'success', false, 
+      'message', 'Você precisa de um passe ativo (R$ 5,00 por 30 dias) para participar deste torneio'
+    );
+  END IF;
+  
+  SELECT saldo INTO v_saldo_atual FROM users WHERE id = p_user_id;
+  IF v_saldo_atual < v_taxa THEN
+    RETURN json_build_object('success', false, 'message', 'Saldo insuficiente');
+  END IF;
+  
+  IF EXISTS (
+    SELECT 1 FROM torneios
+    WHERE (jogador1_id = p_user_id OR jogador2_id = p_user_id)
+    AND status IN ('aguardando', 'processando')
+  ) THEN
+    RETURN json_build_object('success', false, 'message', 'Você já está em um torneio');
+  END IF;
+  
+  SELECT id INTO v_torneio_id
+  FROM torneios
+  WHERE tipo_torneio_id = p_tipo_torneio_id 
+  AND status = 'aguardando'
+  AND jogador2_id IS NULL
+  LIMIT 1;
+  
+  UPDATE users SET saldo = saldo - v_taxa WHERE id = p_user_id;
+  
+  IF v_torneio_id IS NULL THEN
+    INSERT INTO torneios (tipo_torneio_id, jogador1_id)
+    VALUES (p_tipo_torneio_id, p_user_id)
+    RETURNING id INTO v_torneio_id;
+  ELSE
+    UPDATE torneios 
+    SET jogador2_id = p_user_id
+    WHERE id = v_torneio_id;
+  END IF;
+  
+  RETURN json_build_object('success', true, 'torneio_id', v_torneio_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 8. HABILITAR RLS NA TABELA passes_torneio
+ALTER TABLE public.passes_torneio ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "passes_select_own" ON public.passes_torneio;
+CREATE POLICY "passes_select_own" ON public.passes_torneio
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- 9. ATUALIZAR/INSERIR TIPOS DE TORNEIO
+-- Atualizar torneios existentes para requererem passe
+UPDATE public.tipos_torneio SET requer_passe = true WHERE requer_passe IS NULL;

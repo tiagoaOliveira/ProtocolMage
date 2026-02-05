@@ -315,7 +315,7 @@ const Logview = ({
                 {/* Coluna do PRIMEIRO atacante (azul) */}
                 <div className="battle-log-combatant-column user">
                   <div className="battle-log-combatant-header user">
-                    🔵 {primeiroLabel}
+                    {primeiroLabel}
                   </div>
 
                   {/* Status Effects */}
@@ -358,7 +358,7 @@ const Logview = ({
                 {/* Coluna do SEGUNDO atacante (vermelho) */}
                 <div className="battle-log-combatant-column opponent">
                   <div className="battle-log-combatant-header opponent">
-                    🔴 {segundoLabel}
+                      {segundoLabel}
                   </div>
 
                   {/* Status Effects */}

@@ -7,7 +7,6 @@ const Nav = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // Memoiza para evitar recálculos desnecessários
     const currentPath = useMemo(() => {
         return location.pathname === '/' ? '/' : location.pathname.replace(/\/$/, '');
     }, [location.pathname]);
@@ -19,8 +18,6 @@ const Nav = () => {
 
     const handleNavClick = (e, path) => {
         e.preventDefault();
-
-        // Só navega se não estiver na página atual
         if (!isActive(path)) {
             navigate(path);
         }

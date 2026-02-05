@@ -14,8 +14,8 @@
 .battle-log-container-test {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   border-radius: 16px;
-  padding: 1rem 0.5rem;
-  width: 38%;
+  padding: 0.5rem;
+  width: 35%;
   height: 90vh;
   color: white;
   display: flex;
@@ -34,6 +34,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 0.25rem;
 }
 
 .battle-log-title {
@@ -139,7 +140,7 @@
 .battle-log-hp-display {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  gap: 0.5rem;
   flex-wrap: wrap;
   font-size: 1.1rem;
 }
@@ -312,7 +313,8 @@
     padding: 0.5rem;
   }
   .battle-log-container-test {
-    width: 95%;
+    height: 98%;
+    width: 98%;
   }
 
   .battle-log-combatants-grid {

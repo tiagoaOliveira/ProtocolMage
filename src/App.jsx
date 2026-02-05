@@ -7,12 +7,12 @@ import Carteira from './pages/Carteira';
 import Duelo from './pages/Duelo';
 import Mercado from './pages/Mercado';
 import AdminPanel from './pages/AdminPanel';
-
+//https://tiagoaoliveira.github.io/ProtocolMage/
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div>Carregando...</div>;
+    return <div className="loading">Carregando...</div>;
   }
 
   return user ? children : <Navigate to="/login" replace />;
@@ -21,7 +21,7 @@ function PrivateRoute({ children }) {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter basename="/ProtocolMage">
+      <BrowserRouter>
         <Routes>
           {/* Rota pública */}
           <Route path="/login" element={<Login />} />

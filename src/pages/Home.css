@@ -53,7 +53,7 @@
     border-radius: 1rem;
 }
 
-.fight-button-cd{
+.fight-button-cd {
     display: flex;
     gap: 0.75rem;
 }
@@ -79,7 +79,8 @@
 }
 
 /* LOOT MODAL */
-.loot-modal-overlay {
+.loot-modal-overlay,
+.tutorial-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -103,17 +104,18 @@
     }
 }
 
-.loot-modal-content {
+.loot-modal-content,
+.tutorial-modal-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     border-radius: 20px;
-    padding: 3rem 2rem 2rem;
-    width: clamp(280px, 90vw, 700px);
-    max-width: 500px;
-    max-height: 90vh;
+    padding: 2rem;
+    width: 28vw;
+    height: 60vh;
     overflow-y: auto;
-    position: relative;
-    border: 3px solid #FFD700;
-    box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
+    border: 1px solid #FFD700;
     animation: scaleIn 0.4s ease;
 }
 
@@ -235,46 +237,26 @@
 }
 
 /* TUTORIAL MODAL */
-.tutorial-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 10001;
-    animation: fadeIn 0.3s ease;
-}
 
-.tutorial-modal-content {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border-radius: 20px;
-    padding: 1rem;
-    max-width: 500px;
-    border: 3px solid #f09124;
-    animation: scaleIn 0.4s ease;
-}
 
 .tutorial-modal-content h2 {
     color: #f09124;
     text-align: center;
-    margin-bottom: 0.5rem;
-    font-size: 28px;
+    margin-bottom: 0.25rem;
+    font-size: 1.5rem;
 }
 
 .tutorial-steps {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
     margin-bottom: 1rem;
 }
 
 .tutorial-step {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     background: rgba(255, 255, 255, 0.05);
     padding: 1rem;
     border-radius: 12px;
@@ -326,11 +308,13 @@
     }
 
     .tutorial-modal-content {
-        padding: 1rem;
+        padding: 0.75rem;
+        width: 98vw;
+        height: 98vh;
     }
 
     .tutorial-modal-content h2 {
-        font-size: 24px;
+        font-size: 1.25rem;
     }
 
     .tutorial-step {
@@ -350,6 +334,8 @@
 
     .loot-modal-content {
         padding: 1.5rem;
+        width: 78vw;
+        height: 78vh;
     }
 
 }

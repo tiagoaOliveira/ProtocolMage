@@ -259,7 +259,7 @@ const Home = () => {
         {tutorialModalOpen && (
           <div className="tutorial-modal-overlay" onClick={() => setTutorialModalOpen(false)}>
             <div className="tutorial-modal-content" onClick={(e) => e.stopPropagation()}>
-              <h2>Bem-vindo!</h2>
+              <h2>Infos Básicas!</h2>
               <div className="tutorial-steps">
                 <div className="tutorial-step">
                   <ShieldQuestionMark size={70} color='#ff9800' />
