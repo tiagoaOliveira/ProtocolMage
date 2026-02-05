@@ -258,35 +258,67 @@ const Home = () => {
 
         {tutorialModalOpen && (
           <div className="tutorial-modal-overlay" onClick={() => setTutorialModalOpen(false)}>
-            <div className="tutorial-modal-content" onClick={(e) => e.stopPropagation()}>
-              <h2>Infos Básicas!</h2>
-              <div className="tutorial-steps">
-                <div className="tutorial-step">
-                  <ShieldQuestionMark size={70} color='#ff9800' />
-                  <p>Clique em  <strong>Pegar itens</strong> para conseguir  magias e frascos de XP. São 15 itens por dia, reiniciando todo dias ás 00:00. </p>
-                </div>
+          <div
+  className="tutorial-modal-content"
+  onClick={(e) => e.stopPropagation()}
+>
+  <h2>Infos Básicas!</h2>
 
-                <div className="tutorial-step">
-                  <Backpack color='#f09124' size={60} />
-                  <p>No <strong>inventário</strong> você encontra seus itens para usar ou vender para outros jogadores no mercado.</p>
-                </div>
+  <div className="tutorial-body">
+    <div className="tutorial-steps">
+      <div className="tutorial-step">
+        <ShieldQuestionMark size={70} color="#ff9800" />
+        <p>
+          Clique em <strong>Pegar itens</strong> para conseguir magias e frascos
+          de XP. São 15 itens por dia, reiniciando todo dias ás 00:00.
+        </p>
+      </div>
 
-                <div className="tutorial-step">
-                  <img src={mageperfil} alt="Personagem" style={{ width: '3rem', height: '3rem', borderRadius: '100%', objectFit: 'cover' }} />
-                  <p>Acesse seu <strong>personagem</strong> para equipar magias e salvar builds. Um slot é liberado a cada 10 níveis. 60 é o nível máximo, 6 são os slots para magias.</p>
-                </div>
+      <div className="tutorial-step">
+        <Backpack color="#f09124" size={60} />
+        <p>
+          No <strong>inventário</strong> você encontra seus itens para usar ou
+          vender para outros jogadores no mercado.
+        </p>
+      </div>
 
-                <div className="tutorial-step">
-                  <Star size={60} color="#FFD700" fill="#FFD700" />
-                  <p> Em média, você chegará no nível máximo em <strong>21 dias</strong> conseguindo <strong>9 magias</strong> aleatórias.
-                    Também pode comprar no mercado para acelerar seu progresso.
-                  </p>
-                </div>
-              </div>
-              <button className="tutorial-close-btn" onClick={() => setTutorialModalOpen(false)}>
-                Entendi!
-              </button>
-            </div>
+      <div className="tutorial-step">
+        <img
+          src={mageperfil}
+          alt="Personagem"
+          style={{
+            width: '3rem',
+            height: '3rem',
+            borderRadius: '100%',
+            objectFit: 'cover',
+          }}
+        />
+        <p>
+          Acesse seu <strong>personagem</strong> para equipar magias e salvar
+          builds. Um slot é liberado a cada 10 níveis. 60 é o nível máximo, 6 são
+          os slots para magias.
+        </p>
+      </div>
+
+      <div className="tutorial-step">
+        <Star size={60} color="#FFD700" fill="#FFD700" />
+        <p>
+          Em média, você chegará no nível máximo em <strong>21 dias</strong>{' '}
+          conseguindo <strong>9 magias</strong> aleatórias. Também pode comprar no
+          mercado para acelerar seu progresso.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <button
+    className="tutorial-close-btn"
+    onClick={() => setTutorialModalOpen(false)}
+  >
+    Entendi!
+  </button>
+</div>
+
           </div>
         )}
 

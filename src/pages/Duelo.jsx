@@ -332,7 +332,7 @@ const Torneio = () => {
 
             {statusPasse && statusPasse.tem_passe && (
               <div className='passe-ativo'>
-                Passe ativo até {dataFormatada}              </div>
+                Expira: {dataFormatada}</div>
             )}
 
             <div className="torneios-lista">
